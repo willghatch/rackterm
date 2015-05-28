@@ -63,14 +63,24 @@
       (define (print-terminal-cell cell)
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
-        
+
       ;; clear to start painting again...
       (send dc set-background "black")
       (send dc clear)
-      (send dc set-text-background "green")
+      (send dc set-font (send the-font-list find-or-create-font
+                              12
+                              ;"DejaVu Sans Mono"
+                              'modern ; default, decorative, roman, script, swiss, modern, symbol, system
+                              'normal ; normal, italic, slant
+                              'normal ; normal, bold, light
+                              #f ; underline?
+                              ))
+
+      (send dc set-text-mode 'solid) ; use the background color...
+      (send dc set-text-background "black")
       (send dc set-text-foreground "white")
 
-      (for [(line (terminal-line-list terminal))
+      (for [(line (fun-terminal->lines-from-end terminal))
             #:break (< cur-y 0)]
         (print-terminal-line line))
 
@@ -79,16 +89,18 @@
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
         (if (char? key)
-            (terminal-append-cell terminal (make-cell (send event get-key-code) 'foo-color 'bar-color '()))
+            (if (equal? key #\return)
+                (set-field! terminal this (line-break-at-cursor terminal))
+                (set-field! terminal this (insert-at-cursor terminal (make-cell (send event get-key-code) 'foo-color 'bar-color '()))))
             null))
       (send this on-paint))
-    
+
     (super-new)
     ))
-      
+
 
 (define the-canvas (new terminal-canvas%
-                        [terminal (make-new-terminal)]
+                        [terminal (make-empty-fun-terminal)]
                         [parent frame]
                         ;[style '(no-autoclear)]
                         ))
