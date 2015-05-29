@@ -135,8 +135,9 @@
 
 (define (terminal-wrapper-mutate terminal-wrapper mutator)
   ; takes a function that accepts the fun-terminal
-  (set-terminal-wrapper-fun-terminal! (mutator (terminal-wrapper-fun-terminal
-                                                fun-terminal))))
+  (set-terminal-wrapper-fun-terminal! terminal-wrapper
+                                      (mutator (terminal-wrapper-fun-terminal
+                                                terminal-wrapper))))
 
 (define (init-terminal-wrapper command redraw-callback)
   (let ((proc (process/ports #f #f 'stdout command)))
@@ -150,6 +151,7 @@
         (car proc))))
 
 (define (send-char-to-terminal-process term char)
+  (printf "sending to proc char: ~a~n" char)
   (write-char char (terminal-wrapper-get-port term 'out)))
 
 (define (read-char-from-terminal-process term)
@@ -160,11 +162,22 @@
 
 (define (terminal-wrapper-handle-character term char)
   ;; this should handle escape sequences, etc, but for now just print
+  (printf "handling char from subproc: ~a~n" char)
   (let ((cell (make-cell char 'foo-color 'bar-color '())))
     (terminal-wrapper-mutate term (lambda (x) (fun-terminal-insert-at-cursor x cell))))
-  (terminal-wrapper-redraw-callback term))
+  ((terminal-wrapper-redraw-callback term)))
 
 (define (terminal-wrapper-input-listener term)
   (lambda ()
-    (terminal-wrapper-handle-character term
-                                       (read-char-from-terminal-process term))))
+    (define (listener)
+      (let ((char (read-char-from-terminal-process term)))
+        (if (not (eof-object? char))
+            (begin (terminal-wrapper-handle-character term char)
+                   (listener))
+            'what-do-I-do-here?--the-process-is-finished...)))
+    (sleep 0)
+    (listener)))
+
+;; TODO -- before opening the process I need to open a PTY - with...
+;; posix_openpt or openpty or such... then somehow use the ptm and pts file
+;; descriptors as ports.

@@ -33,6 +33,7 @@
 (define terminal-canvas%
   (class canvas%
     (init-field terminal)
+    (define/public (get-terminal) terminal)
     (define/override (on-paint)
       (define dc (send this get-dc))
       ;; I need to keep track of the coordinates and only draw lines inside the max
@@ -101,11 +102,17 @@
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal-wrapper "/bin/sh" (lambda ()
-                                                    (send the-canvas on-paint)))]
+       [terminal (init-terminal-wrapper "/bin/sh -i -"
+                                        (lambda ()
+                                          (queue-callback (lambda ()
+                                                            (send the-canvas on-paint)))))]
        [parent frame]
        ;[style '(no-autoclear)]
        ))
+
+
+
+
 (send the-canvas focus)
 (define the-dc (send the-canvas get-dc))
 
