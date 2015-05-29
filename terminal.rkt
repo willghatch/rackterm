@@ -1,4 +1,5 @@
 #lang racket/base
+(require racket/system) ; for process/ports
 ;;; what do I need?
 ;;; cursor needs a location, maybe attrs such as type (I-beam, block...), blink, colors...
 ;;; sequence handling callbacks
@@ -27,10 +28,9 @@
 (define-struct cursor-line
   (cells-before-cursor ; reversed list
    cells-after-cursor ; non-reversed list
-   length-cells-before-cursor ; AKA cursor position
-   length-cells-after-cursor))
+   length-cells-before-cursor)) ; AKA cursor position
 (define (make-empty-cursor-line)
-  (make-cursor-line '() '() 0 0))
+  (make-cursor-line '() '() 0))
 
 (define (make-empty-fun-terminal)
   (make-fun-terminal '() '() (make-empty-cursor-line) 0 0))
@@ -45,6 +45,24 @@
                                  #:break (i . >= . line-index))
                         elem))))
     (make-cursor-line beg end line-index (length end))))
+
+(define (cursor-line-empty-after-cursor? line)
+  (not (null? (cursor-line-cells-after-cursor line))))
+(define (cursor-line-empty-before-cursor? line)
+  (not (null? (cursor-line-cells-before-cursor line))))
+
+(define (cursor-line-delete-cell-forward line)
+  (struct-copy cursor-line line
+               [cells-after-cursor (cdr (cursor-line-cells-after-cursor line))]))
+(define (cursor-line-delete-cell-backward line)
+  (struct-copy cursor-line line
+               [cells-before-cursor (cdr (cursor-line-cells-before-cursor line))]
+               [length-cells-before-cursor (- (cursor-line-length-cells-before-cursor
+                                               line) 1)]))
+(define (cursor-line-insert-cell line cell)
+  (struct-copy cursor-line line
+               [cells-before-cursor (cons cell (cursor-line-cells-before-cursor line))]
+               [length-cells-before-cursor (+ 1 (cursor-line-length-cells-before-cursor line))]))
 
 (define (move-cursor-line terminal [direction 'forward] [line-index 'current])
   ;; TODO - check that I'm not moving past the end/beginning
@@ -78,8 +96,7 @@
                                  (fun-terminal-lines-before-cursor terminal)))
          (new-cursor-line (make-cursor-line '()
                                             (cursor-line-cells-after-cursor old-cursor-line)
-                                            0
-                                            (cursor-line-length-cells-after-cursor old-cursor-line))))
+                                            0)))
     (struct-copy fun-terminal terminal
                  [lines-before-cursor new-lines-before]
                  [length-lines-before-cursor
@@ -88,28 +105,19 @@
 
 ;; TODO - join previous line to cursor line
 
-(define (insert-at-cursor terminal cell)
-  (if (equal? cell 'newline)
+(define (fun-terminal-insert-at-cursor terminal cell)
+  (if (or (equal? cell 'newline) (equal? (cell-character cell) #\newline))
       (line-break-at-cursor terminal)
-      (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
-             (new-cursor-line
-              (struct-copy cursor-line old-cursor-line
-                           [cells-before-cursor (cons cell (cursor-line-cells-before-cursor old-cursor-line))]
-                           [length-cells-before-cursor (+ 1 (cursor-line-length-cells-before-cursor old-cursor-line))])))
+      (let ((old-cursor-line (fun-terminal-line-with-cursor terminal)))
         (struct-copy fun-terminal terminal
-                     [line-with-cursor new-cursor-line]))))
+                     [line-with-cursor (cursor-line-insert-cell
+                                        old-cursor-line cell)]))))
 
-(define (delete-backwards-at-cursor terminal)
+(define (fun-terminal-delete-backwards-at-cursor terminal)
   ;; TODO - what about deleting at the beginning?  Error, or join lines?
-  (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
-         (new-cursor-line
-          (struct-copy cursor-line old-cursor-line
-                       [cells-before-cursor
-                        (cdr (cursor-line-cells-before-cursor old-cursor-line))]
-                       [length-cells-before-cursor
-                        (- (cursor-line-length-cells-before-cursor old-cursor-line) 1)])))
+  (let ((old-cursor-line (fun-terminal-line-with-cursor terminal)))
     (struct-copy fun-terminal terminal
-                 [line-with-cursor new-cursor-line])))
+                 [line-with-cursor (cursor-line-delete-cell-backward old-cursor-line)])))
 
 (define (fun-terminal->lines-from-end terminal)
   ;; gives the lines in reverse order, because the last lines will be the ones used first
@@ -118,3 +126,45 @@
          (cons (cursor-line->normal-line (fun-terminal-line-with-cursor terminal))
                (fun-terminal-lines-after-cursor terminal))))
 
+;; this is to wrap the fun-terminal and hook it together with a process
+(define-struct terminal-wrapper
+  (fun-terminal
+   process
+   redraw-callback)
+  #:mutable)
+
+(define (terminal-wrapper-mutate terminal-wrapper mutator)
+  ; takes a function that accepts the fun-terminal
+  (set-terminal-wrapper-fun-terminal! (mutator (terminal-wrapper-fun-terminal
+                                                fun-terminal))))
+
+(define (init-terminal-wrapper command redraw-callback)
+  (let ((proc (process/ports #f #f 'stdout command)))
+    (make-terminal-wrapper (make-empty-fun-terminal) proc redraw-callback)))
+
+(define (terminal-wrapper-get-port term [port 'out])
+  ;; out = output port = subprocess stdin
+  (let ((proc (terminal-wrapper-process term)))
+    (if (equal? port 'out)
+        (cadr proc)
+        (car proc))))
+
+(define (send-char-to-terminal-process term char)
+  (write-char char (terminal-wrapper-get-port term 'out)))
+
+(define (read-char-from-terminal-process term)
+  (read-char (terminal-wrapper-get-port term 'in)))
+
+(define (terminal-wrapper-get-lines term)
+  (fun-terminal->lines-from-end (terminal-wrapper-fun-terminal term)))
+
+(define (terminal-wrapper-handle-character term char)
+  ;; this should handle escape sequences, etc, but for now just print
+  (let ((cell (make-cell char 'foo-color 'bar-color '())))
+    (terminal-wrapper-mutate term (lambda (x) (fun-terminal-insert-at-cursor x cell))))
+  (terminal-wrapper-redraw-callback term))
+
+(define (terminal-wrapper-input-listener term)
+  (lambda ()
+    (terminal-wrapper-handle-character term
+                                       (read-char-from-terminal-process term))))

@@ -80,7 +80,7 @@
       (send dc set-text-background "black")
       (send dc set-text-foreground "white")
 
-      (for [(line (fun-terminal->lines-from-end terminal))
+      (for [(line (terminal-wrapper-get-lines terminal))
             #:break (< cur-y 0)]
         (print-terminal-line line))
 
@@ -89,21 +89,23 @@
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
         (if (char? key)
-            (if (equal? key #\return)
-                (set-field! terminal this (line-break-at-cursor terminal))
-                (set-field! terminal this (insert-at-cursor terminal (make-cell (send event get-key-code) 'foo-color 'bar-color '()))))
+            (send-char-to-terminal-process terminal key)
             null))
       (send this on-paint))
 
     (super-new)
+    ;; start thread to listen for input from the subprocess
+    (thread (terminal-wrapper-input-listener terminal))
     ))
 
 
-(define the-canvas (new terminal-canvas%
-                        [terminal (make-empty-fun-terminal)]
-                        [parent frame]
-                        ;[style '(no-autoclear)]
-                        ))
+(define the-canvas
+  (new terminal-canvas%
+       [terminal (init-terminal-wrapper "/bin/sh" (lambda ()
+                                                    (send the-canvas on-paint)))]
+       [parent frame]
+       ;[style '(no-autoclear)]
+       ))
 (send the-canvas focus)
 (define the-dc (send the-canvas get-dc))
 
