@@ -59,11 +59,6 @@
     (define-values (master slave slave-name) (openpty #f #f ws))
     (define-values (m-in m-out) (scheme_make_fd_output_port master "mastername" 0 0))
     (define-values (s-in s-out) (scheme_make_fd_output_port slave "slavename" 0 0))
-    ;(define s-in (scheme_make_fd_input_port slave "slavename" 0 0))
-    ;(define s-out (scheme_make_fd_output_port slave "slavename" 0 0))
-    ;(define m-in (scheme_make_fd_input_port master "mastername" 0 0))
-    ;(define m-out (scheme_make_fd_output_port master "mastername" 0 0))
-    (printf "min ~a mout ~a sin ~a sout ~a~n" m-in m-out s-in s-out)
     (values m-in m-out s-in s-out)))
 
 
