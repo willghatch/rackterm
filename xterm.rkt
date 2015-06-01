@@ -90,7 +90,8 @@
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
         (if (char? key)
-            (send-char-to-terminal-process terminal key)
+            (for ((char (map-event-to-terminal-codes event)))
+              (send-char-to-terminal-process terminal key))
             null))
       (send this on-paint))
 
@@ -99,13 +100,28 @@
     (thread (terminal-wrapper-input-listener terminal))
     ))
 
+(define (control-version key)
+  ;; return what the key would be if control were held down
+  (case
+      [(#\a #\A) 'ctl-a]
+    ))
+(define (map-event-to-terminal-codes event)
+  (let* ((key (send event get-key-code))
+         (ctl (send event get-control-down))
+         (meta (send event get-meta-down))
+         (alt (send event get-alt-down))
+         (m3 (send event get-mod3-down))
+         (m4 (send event get-mod4-down))
+         (m5 (send event get-mod5-down)))
+    ;; note, there is also a C+M=altr option here...
+    (list key)
+    ))
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal-wrapper "/bin/sh -i -"
+       [terminal (init-terminal-wrapper "setsid /bin/sh -i -"
                                         (lambda ()
-                                          (queue-callback (lambda ()
-                                                            (send the-canvas on-paint)))))]
+                                          (send the-canvas refresh)))]
        [parent frame]
        ;[style '(no-autoclear)]
        ))

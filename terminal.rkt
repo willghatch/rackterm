@@ -1,5 +1,6 @@
 #lang racket/base
 (require racket/system) ; for process/ports
+(require "pty.rkt")
 ;;; what do I need?
 ;;; cursor needs a location, maybe attrs such as type (I-beam, block...), blink, colors...
 ;;; sequence handling callbacks
@@ -106,7 +107,7 @@
 ;; TODO - join previous line to cursor line
 
 (define (fun-terminal-insert-at-cursor terminal cell)
-  (if (or (equal? cell 'newline) (equal? (cell-character cell) #\newline))
+  (if (equal? (cell-character cell) #\newline)
       (line-break-at-cursor terminal)
       (let ((old-cursor-line (fun-terminal-line-with-cursor terminal)))
         (struct-copy fun-terminal terminal
@@ -129,7 +130,8 @@
 ;; this is to wrap the fun-terminal and hook it together with a process
 (define-struct terminal-wrapper
   (fun-terminal
-   process
+   process-in
+   process-out
    redraw-callback)
   #:mutable)
 
@@ -140,22 +142,17 @@
                                                 terminal-wrapper))))
 
 (define (init-terminal-wrapper command redraw-callback)
-  (let ((proc (process/ports #f #f 'stdout command)))
-    (make-terminal-wrapper (make-empty-fun-terminal) proc redraw-callback)))
-
-(define (terminal-wrapper-get-port term [port 'out])
-  ;; out = output port = subprocess stdin
-  (let ((proc (terminal-wrapper-process term)))
-    (if (equal? port 'out)
-        (cadr proc)
-        (car proc))))
+  ;; TODO -- the new process needs to start a new process group, do some IOCTL stuff
+  (define-values (m-in m-out s-in s-out) (my-openpty))
+  (let ((proc (process/ports s-out s-in 'stdout command)))
+      (make-terminal-wrapper (make-empty-fun-terminal) m-in m-out redraw-callback)))
 
 (define (send-char-to-terminal-process term char)
   (printf "sending to proc char: ~a~n" char)
-  (write-char char (terminal-wrapper-get-port term 'out)))
+  (write-char char (terminal-wrapper-process-out term)))
 
 (define (read-char-from-terminal-process term)
-  (read-char (terminal-wrapper-get-port term 'in)))
+  (read-char (terminal-wrapper-process-in term)))
 
 (define (terminal-wrapper-get-lines term)
   (fun-terminal->lines-from-end (terminal-wrapper-fun-terminal term)))
@@ -174,10 +171,7 @@
         (if (not (eof-object? char))
             (begin (terminal-wrapper-handle-character term char)
                    (listener))
-            'what-do-I-do-here?--the-process-is-finished...)))
+            null)))
     (sleep 0)
     (listener)))
 
-;; TODO -- before opening the process I need to open a PTY - with...
-;; posix_openpt or openpty or such... then somehow use the ptm and pts file
-;; descriptors as ports.
