@@ -148,8 +148,8 @@
       (make-terminal-wrapper (make-empty-fun-terminal) m-in m-out redraw-callback)))
 
 (define (send-char-to-terminal-process term char)
-  (printf "sending to proc char: ~a~n" char)
-  (write-char char (terminal-wrapper-process-out term)))
+  (write-char char (terminal-wrapper-process-out term))
+  (flush-output (terminal-wrapper-process-out term)))
 
 (define (read-char-from-terminal-process term)
   (read-char (terminal-wrapper-process-in term)))
@@ -159,7 +159,6 @@
 
 (define (terminal-wrapper-handle-character term char)
   ;; this should handle escape sequences, etc, but for now just print
-  (printf "handling char from subproc: ~a~n" char)
   (let ((cell (make-cell char 'foo-color 'bar-color '())))
     (terminal-wrapper-mutate term (lambda (x) (fun-terminal-insert-at-cursor x cell))))
   ((terminal-wrapper-redraw-callback term)))

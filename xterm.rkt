@@ -91,7 +91,7 @@
       (let ((key (send event get-key-code)))
         (if (char? key)
             (for ((char (map-event-to-terminal-codes event)))
-              (send-char-to-terminal-process terminal key))
+              (send-char-to-terminal-process terminal char))
             null))
       (send this on-paint))
 
@@ -102,9 +102,11 @@
 
 (define (control-version key)
   ;; return what the key would be if control were held down
-  (case
-      [(#\a #\A) 'ctl-a]
-    ))
+  (define as-int (char->integer key))
+  (if (as-int . < . 128)
+      (integer->char (bitwise-and 31 as-int))
+      key))
+
 (define (map-event-to-terminal-codes event)
   (let* ((key (send event get-key-code))
          (ctl (send event get-control-down))
@@ -112,10 +114,14 @@
          (alt (send event get-alt-down))
          (m3 (send event get-mod3-down))
          (m4 (send event get-mod4-down))
-         (m5 (send event get-mod5-down)))
+         (m5 (send event get-mod5-down))
+         (key-with-ctl (if ctl (control-version key) key)))
     ;; note, there is also a C+M=altr option here...
-    (list key)
-    ))
+    ;; some day I'll have some table lookup for extra values...
+    ;(printf "key: ~a, ctl: ~a, alt: ~a, meta: ~a" key ctl alt meta)
+    (if (or alt meta)
+        (list #\033 key-with-ctl)
+        (list key-with-ctl))))
 
 (define the-canvas
   (new terminal-canvas%
