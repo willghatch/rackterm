@@ -33,6 +33,8 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-delete-backwards-at-cursor ft))))
 (define (terminal-line-break-at-cursor term)
   (terminal-mutate term (lambda (ft) (fun-terminal-line-break-at-cursor ft))))
+(define (terminal-delete-to-end-of-line term)
+  (terminal-mutate term (lambda (ft) (fun-terminal-delete-to-end-of-line ft))))
 
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out) (my-openpty))
@@ -90,9 +92,12 @@
   ;; IE handling after receiving ESC character
   (set-terminal-current-char-handler! term null)
   (case char
-    [(#\d #\D) (terminal-insert-character term #\newline)]
+    [(#\D) (terminal-insert-character term #\newline)]
     [(#\[) (set-terminal-current-char-handler! term csi-handler)]
-    [else (void)]))
+    [else null]))
 
-(define (csi-handler term char)
-  (set-terminal-current-char-handler! term null))
+(define (csi-handler term char [csi-args '()])
+  (set-terminal-current-char-handler! term null)
+  (case char
+    [(#\k #\K) (terminal-delete-to-end-of-line term)]
+    [else null]))
