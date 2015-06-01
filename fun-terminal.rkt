@@ -106,30 +106,32 @@
                                               [cells-after-cursor '()])]))
 
 (define (move-cursor-line terminal [direction 'forward] [line-index 'current])
-  ;; TODO - check that I'm not moving past the end/beginning
-  (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
-         (old-cursor-line-normalized (cursor-line->normal-line old-cursor-line))
+  (let* ((forward? (equal? direction 'forward))
          (old-before (fun-terminal-lines-before-cursor terminal))
-         (old-after (fun-terminal-lines-after-cursor terminal))
-         (index (if (equal? line-index 'current)
-                    (cursor-line-length-cells-before-cursor (old-cursor-line))
-                    line-index))
-         (forward? (equal? direction 'forward))
-         (cursor-line-to-be (if forward?
-                                (car old-after)
-                                (car old-before)))
-         (new-cursor-line (normal-line->cursor-line cursor-line-to-be index))
-         (new-lines-before (if forward?
-                               (cons old-cursor-line-normalized old-before)
-                               (cdr old-before)))
-         (new-lines-after (if forward?
-                              (cdr old-after)
-                              (cons old-cursor-line-normalized old-after)))
-         (new-n-before (+ (fun-terminal-length-lines-before-cursor terminal)
-                          (if forward? 1 -1)))
-         (new-n-after (+ (fun-terminal-length-lines-after-cursor terminal)
-                          (if forward? -1 1))))
-    (make-fun-terminal new-lines-before new-lines-after new-cursor-line new-n-before new-n-after)))
+         (old-after (fun-terminal-lines-after-cursor terminal)))
+    (if (or (and forward? (null? old-after))
+            (and (not forward?) (null old-before)))
+        terminal
+        (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
+               (old-cursor-line-normalized (cursor-line->normal-line old-cursor-line))
+               (index (if (equal? line-index 'current)
+                          (cursor-line-length-cells-before-cursor (old-cursor-line))
+                          line-index))
+               (cursor-line-to-be (if forward?
+                                      (car old-after)
+                                      (car old-before)))
+               (new-cursor-line (normal-line->cursor-line cursor-line-to-be index))
+               (new-lines-before (if forward?
+                                     (cons old-cursor-line-normalized old-before)
+                                     (cdr old-before)))
+               (new-lines-after (if forward?
+                                    (cdr old-after)
+                                    (cons old-cursor-line-normalized old-after)))
+               (new-n-before (+ (fun-terminal-length-lines-before-cursor terminal)
+                                (if forward? 1 -1)))
+               (new-n-after (+ (fun-terminal-length-lines-after-cursor terminal)
+                               (if forward? -1 1))))
+          (make-fun-terminal new-lines-before new-lines-after new-cursor-line new-n-before new-n-after)))))
 
 (define (fun-terminal-forward-lines term [n-lines 1])
   (let ((direction (if (positive? n-lines)
