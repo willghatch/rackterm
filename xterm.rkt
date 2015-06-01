@@ -81,7 +81,7 @@
       (send dc set-text-background "black")
       (send dc set-text-foreground "white")
 
-      (for [(line (terminal-wrapper-get-lines terminal))
+      (for [(line (terminal-get-lines terminal))
             #:break (< cur-y 0)]
         (print-terminal-line line))
 
@@ -97,7 +97,7 @@
 
     (super-new)
     ;; start thread to listen for input from the subprocess
-    (thread (terminal-wrapper-input-listener terminal))
+    (thread (terminal-input-listener terminal))
     ))
 
 (define (control-version key)
@@ -125,7 +125,7 @@
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal-wrapper "setsid /bin/sh -i -"
+       [terminal (init-terminal "setsid /bin/sh -i -"
                                         (lambda ()
                                           (send the-canvas refresh)))]
        [parent frame]
