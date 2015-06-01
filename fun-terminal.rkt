@@ -6,10 +6,12 @@
  fun-terminal-insert-at-cursor
  fun-terminal-delete-backwards-at-cursor
  fun-terminal-line-break-at-cursor
- fun-terminal-advance-lines
+ fun-terminal-forward-lines
+ fun-terminal-forward-cells
  fun-terminal-get-column
  fun-terminal-get-rows-from-end
  fun-terminal-get-num-rows
+ fun-terminal-delete-to-end-of-line
  (struct-out cell)
  )
 
@@ -47,23 +49,61 @@
                         elem))))
     (make-cursor-line beg end line-index (length end))))
 
-(define (cursor-line-empty-after-cursor? line)
-  (not (null? (cursor-line-cells-after-cursor line))))
-(define (cursor-line-empty-before-cursor? line)
-  (not (null? (cursor-line-cells-before-cursor line))))
-
 (define (cursor-line-delete-cell-forward line)
-  (struct-copy cursor-line line
-               [cells-after-cursor (cdr (cursor-line-cells-after-cursor line))]))
+  (if (null? (cursor-line-cells-after-cursor line))
+      line
+      (struct-copy cursor-line line
+                   [cells-after-cursor (cdr (cursor-line-cells-after-cursor line))])))
 (define (cursor-line-delete-cell-backward line)
-  (struct-copy cursor-line line
-               [cells-before-cursor (cdr (cursor-line-cells-before-cursor line))]
-               [length-cells-before-cursor (- (cursor-line-length-cells-before-cursor
-                                               line) 1)]))
+  (if (equal? (cursor-line-length-cells-before-cursor line) 0)
+      line
+      (struct-copy cursor-line line
+                   [cells-before-cursor
+                    (cdr (cursor-line-cells-before-cursor line))]
+                   [length-cells-before-cursor
+                    (sub1 (cursor-line-length-cells-before-cursor line))])))
+
 (define (cursor-line-insert-cell line cell)
   (struct-copy cursor-line line
                [cells-before-cursor (cons cell (cursor-line-cells-before-cursor line))]
-               [length-cells-before-cursor (+ 1 (cursor-line-length-cells-before-cursor line))]))
+               [length-cells-before-cursor (add1 (cursor-line-length-cells-before-cursor line))]))
+
+(define (cursor-line-move-cursor-backward line)
+  (if (equal? (cursor-line-length-cells-before-cursor line) 0)
+      line
+      (make-cursor-line (cdr (cursor-line-cells-before-cursor line))
+                        (cons (car (cursor-line-cells-before-cursor line)
+                                   (cursor-line-cells-after-cursor line)))
+                        (sub1 (cursor-line-length-cells-before-cursor line)))))
+
+(define (cursor-line-move-cursor-forward line)
+  (if (null? (cursor-line-cells-after-cursor line))
+      line
+      (make-cursor-line (cons (car (cursor-line-cells-after-cursor line)
+                                   (cursor-line-cells-before-cursor line)))
+                        (cdr (cursor-line-cells-after-cursor line))
+                        (add1 (cursor-line-length-cells-before-cursor line)))))
+
+(define (cursor-line-advance-cursor line [n 1])
+  (let ((adv-func (if (positive? n)
+                      cursor-line-move-cursor-forward
+                      cursor-line-move-cursor-backward)))
+    (define (iter line n)
+      (if (equal? 0 n)
+          line
+          (iter (adv-func line) (sub1 n))))
+    (iter line n)))
+
+(define (fun-terminal-forward-cells term [n-cells 1])
+  (struct-copy fun-terminal term
+               [line-with-cursor (cursor-line-advance-cursor
+                                  (fun-terminal-line-with-cursor term)
+                                  n-cells)]))
+
+(define (fun-terminal-delete-to-end-of-line term)
+  (struct-copy fun-terminal term
+               [line-with-cursor (struct-copy cursor-line (fun-terminal-line-with-cursor term)
+                                              [cells-after-cursor '()])]))
 
 (define (move-cursor-line terminal [direction 'forward] [line-index 'current])
   ;; TODO - check that I'm not moving past the end/beginning
@@ -91,7 +131,7 @@
                           (if forward? -1 1))))
     (make-fun-terminal new-lines-before new-lines-after new-cursor-line new-n-before new-n-after)))
 
-(define (fun-terminal-advance-lines term n-lines)
+(define (fun-terminal-forward-lines term [n-lines 1])
   (let ((direction (if (positive? n-lines)
                        'forward
                        'backward)))

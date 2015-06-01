@@ -51,6 +51,7 @@
     (terminal-insert-at-cursor term cell)))
 
 (define (terminal-handle-character term char)
+  (printf "handling the character: ~s~n" char)
   (define handler (terminal-current-char-handler term))
   (cond
     [(not (null? handler)) (handler term char)]
@@ -76,11 +77,22 @@
 (define (handle-ascii-controls term char)
   (case char
     [(#\u07) null] ;; BEEP!
-    [(#\u08) null] ;; backspace
+    [(#\u08) (terminal-delete-backwards-at-cursor term)] ;; backspace
     [(#\u09) null] ;; tab
-    ;; technically return should give a carriage return, all others a line feed...
-    [(#\return #\newline #\u0B #\u0C) (terminal-insert-character term char)]
+    [(#\newline #\u0B #\u0C) (terminal-insert-character term #\newline)]
+    [(#\return) null] ;; carriage return...
     [(#\u0E) null] ;; activate G1 character set
     [(#\u0F) null] ;; activate G0 character set
-    [(#\u1B) null] ;; start escape sequence
+    [(#\u1B) (set-terminal-current-char-handler! term escape-handler)] ;; start escape sequence
     [else null]))
+
+(define (escape-handler term char)
+  ;; IE handling after receiving ESC character
+  (set-terminal-current-char-handler! term null)
+  (case char
+    [(#\d #\D) (terminal-insert-character term #\newline)]
+    [(#\[) (set-terminal-current-char-handler! term csi-handler)]
+    [else (void)]))
+
+(define (csi-handler term char)
+  (set-terminal-current-char-handler! term null))
