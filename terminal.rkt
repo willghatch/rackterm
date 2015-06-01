@@ -2,23 +2,17 @@
 (require racket/system) ; for process/ports
 (require "pty.rkt")
 (require "fun-terminal.rkt")
-;;; what do I need?
-;;; cursor needs a location, maybe attrs such as type (I-beam, block...), blink, colors...
-;;; sequence handling callbacks
-;;;
-;;; Questions:  How do programs know when the size changes (eg. vim)?
-
 
 
 (provide (all-defined-out)
          (struct-out cell))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TODO:
+;; I want something better than wrapping a command in setsid to set a new process group
+;; the 'who' command doesn't show my racket xterms...
 
 
-
-
-;; this is to wrap the fun-terminal and hook it together with a process
 (define-struct terminal
   (fun-terminal
    process-in
