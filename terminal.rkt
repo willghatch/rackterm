@@ -59,6 +59,22 @@
 (define default-fg-color "white")
 (define default-bg-color "black")
 
+(define (init-terminal2 redraw-callback command . command-args)
+  (define-values (m-in m-out s-in s-out master-fd) (my-openpty))
+  (parameterize ([subprocess-group-enabled #t])
+    (define-values (subproc sub-in sub-out sub-err)
+      (apply subprocess (append (list s-out s-in 'stdout "/usr/bin/setsid") (cons command command-args))))
+    (make-terminal (make-empty-fun-terminal)
+                   m-in
+                   m-out
+                   master-fd
+                   80
+                   24
+                   redraw-callback
+                   null
+                   default-fg-color
+                   default-bg-color
+                   '())))
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out master-fd) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))

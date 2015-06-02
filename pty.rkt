@@ -70,3 +70,27 @@
 (define (get-pty-size fd winsize)
   (ioctl fd TIOCGWINSZ winsize))
 
+
+
+(define-ffi-definer define-libc (ffi-lib "libc" '("6" #f)))
+
+(define-libc fork (_fun -> (ret : _int)))
+
+(define-libc execvp (_fun (file : _string) (argv : _pointer)
+                          -> (ret : _int)
+                          -> (error "execvp failed")))
+(define (make-argv args)
+  (_array _string (add1 (length args)) (append args (list #f))))
+(define (rexecvp command . args)
+  (execvp command (make-argv args)))
+
+(define (exec-with-new-tty fd command . args)
+  ;; set terminal here with fd
+  (rexecvp command args))
+
+(define (subproc-with-new-controlling-tty tty-fd command . args)
+  (case (fork)
+    [(-1) (error "fork failed")]
+    [(0) (void)] ;; parent
+    [else (apply exec-with-new-tty (append (list tty-fd command) args))]))
+

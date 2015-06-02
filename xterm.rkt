@@ -136,9 +136,9 @@
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal "setsid bash -i -"
-                                        (lambda ()
-                                          (send the-canvas refresh)))]
+       [terminal (init-terminal2 (lambda ()
+                                  (send the-canvas refresh))
+                                "/bin/bash" "-i")]
        [parent frame]
        ;[style '(no-autoclear)]
        ))
