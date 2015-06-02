@@ -9,9 +9,14 @@
 
 
 ;; TODO:
-;; I want something better than wrapping a command in setsid to set a new process group
-;; the 'who' command doesn't show my racket xterms...
-
+;; - I want something better than wrapping a command in setsid to set a new process group
+;; - the 'who' command doesn't show my racket xterms...
+;; - /bin/sh enters a space once it reaches the last character of terminal width, then a return character.
+;;   I believe the default behaviour would be to enter the space on the next line down, then
+;;   the carriage return would go to the start of the line...
+;;   I can either split the line or do a bunch of handling to make carriage returns only go back
+;;   to the line start modulo official line width
+;; - I need to report my actual terminal size...
 
 (define-struct terminal
   (fun-terminal
@@ -19,7 +24,9 @@
    process-out
    redraw-callback
    current-char-handler
-   )
+   current-color
+   current-bg-color
+   current-cell-attrs)
   #:mutable)
 
 (define (terminal-mutate terminal fun-terminal-function)
@@ -35,11 +42,26 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-line-break-at-cursor ft))))
 (define (terminal-delete-to-end-of-line term)
   (terminal-mutate term (lambda (ft) (fun-terminal-delete-to-end-of-line ft))))
+(define (terminal-clear-current-line term)
+  (terminal-mutate term (lambda (ft) (fun-terminal-clear-line ft))))
+(define (terminal-forward-chars term [n 1])
+  (terminal-mutate term (lambda (ft) (fun-terminal-forward-cells ft n))))
+(define (terminal-forward-lines term [n 1])
+  (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n))))
+(define (terminal-overwrite term cell)
+  (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
 
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
-      (make-terminal (make-empty-fun-terminal) m-in m-out redraw-callback null)))
+    (make-terminal (make-empty-fun-terminal)
+                   m-in
+                   m-out
+                   redraw-callback
+                   null
+                   'default
+                   'default
+                   '())))
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))
@@ -48,9 +70,25 @@
 (define (terminal-get-lines term)
   (fun-terminal->lines-from-end (terminal-fun-terminal term)))
 
+(define (terminal-make-cell term char)
+  (make-cell char
+             (terminal-current-color term)
+             (terminal-current-bg-color term)
+             (terminal-current-cell-attrs term)))
+
 (define (terminal-insert-character term char)
-  (let ((cell (make-cell char 'foo-color 'bar-color '())))
-    (terminal-insert-at-cursor term cell)))
+  (terminal-insert-at-cursor term (terminal-make-cell term char)))
+
+(define (terminal-get-column term)
+  (fun-terminal-get-column (terminal-fun-terminal term)))
+
+(define (terminal-go-to-column term column)
+  (let* ((cur-column (terminal-get-column term))
+        (diff (column . - . cur-column)))
+    (terminal-forward-chars term diff)))
+
+(define (terminal-overwrite-character term char)
+  (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-handle-character term char)
   (printf "handling the character: ~s~n" char)
@@ -60,7 +98,7 @@
     [((char->integer char) . < . 32)
      (handle-ascii-controls term char)]
     [else
-     (terminal-insert-character term char)])
+     (terminal-overwrite-character term char)])
   ((terminal-redraw-callback term)))
 
 (define (terminal-input-listener term)
@@ -79,25 +117,90 @@
 (define (handle-ascii-controls term char)
   (case char
     [(#\u07) null] ;; BEEP!
-    [(#\u08) (terminal-delete-backwards-at-cursor term)] ;; backspace
+    [(#\u08) (terminal-forward-chars term -1)] ;; backspace
     [(#\u09) null] ;; tab
-    [(#\newline #\u0B #\u0C) (terminal-insert-character term #\newline)]
-    [(#\return) null] ;; carriage return...
+    [(#\newline #\u0B #\u0C) (terminal-forward-lines term)]
+    [(#\return) (terminal-go-to-column term 0)] ;; carriage return...
     [(#\u0E) null] ;; activate G1 character set
     [(#\u0F) null] ;; activate G0 character set
     [(#\u1B) (set-terminal-current-char-handler! term escape-handler)] ;; start escape sequence
+    [(#\u9B) (set-terminal-current-char-handler! term new-csi-handler)]
     [else null]))
 
 (define (escape-handler term char)
   ;; IE handling after receiving ESC character
   (set-terminal-current-char-handler! term null)
   (case char
-    [(#\D) (terminal-insert-character term #\newline)]
-    [(#\[) (set-terminal-current-char-handler! term csi-handler)]
+    [(#\D) (terminal-forward-lines term)]
+    [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
     [else null]))
 
-(define (csi-handler term char [csi-args '()])
-  (set-terminal-current-char-handler! term null)
-  (case char
-    [(#\k #\K) (terminal-delete-to-end-of-line term)]
-    [else null]))
+(define (make-csi-handler completed-params current-param leading-question?)
+  (lambda (term char)
+    (set-terminal-current-char-handler! term null)
+    (case char
+      [(#\;) (set-terminal-current-char-handler! term
+                                                 (make-csi-handler
+                                                  (cons current-param completed-params)
+                                                  0
+                                                  leading-question?))]
+      [(#\?) (if (and (null? completed-params) (equal? current-param 0))
+                 (set-terminal-current-char-handler! term
+                                                     (make-csi-handler
+                                                      completed-params
+                                                      current-param
+                                                      #t))
+                 null)] ; I guess a question mark somewhere else just kills it...?
+      [(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
+       (set-terminal-current-char-handler! term (make-csi-handler
+                                                 completed-params
+                                                 (+ (* 10 current-param)
+                                                    (read (open-input-string (string char))))
+                                                 leading-question?))]
+      [else
+       (let ((end-handler (hash-ref csi-table char (lambda ()
+                                                     (lambda (term char params lq?)
+                                                       (printf "ignored CSI terminator: ~a~n" char))))))
+         (end-handler term char (cons current-param completed-params) leading-question?))])))
+
+(define new-csi-handler (make-csi-handler '() 0 #f))
+
+(define (car-defaulted l default)
+  (let ((orig (car l)))
+    (if (equal? 0 orig)
+        default
+        orig)))
+
+(define csi-table
+  (hash
+   #\@ (lambda (term char params lq?)
+         (for ((i (in-range (car-defaulted params 1))))
+           (terminal-insert-at-cursor term (terminal-make-cell term #\space))
+           (terminal-forward-chars term -1)))
+
+   #\A (lambda (term char params lq?)
+         (terminal-forward-lines term (- (car-defaulted params 1))))
+   #\B (lambda (term char params lq?)
+         (terminal-forward-lines term (car-defaulted params 1)))
+   #\C (lambda (term char params lq?)
+         (terminal-forward-chars term (car-defaulted params 1)))
+   #\D (lambda (term char params lq?)
+         (terminal-forward-chars term (- (car-defaulted params 1))))
+   #\E (lambda (term char params lq?)
+         (terminal-go-to-column term 0)
+         (terminal-forward-lines term (car-defaulted params 1)))
+   #\F (lambda (term char params lq?)
+         (terminal-go-to-column term 0)
+         (terminal-forward-lines term (- (car-defaulted params 1))))
+   #\G (lambda (term char params lq?)
+         (terminal-go-to-column term (sub1 (car-defaulted params 1))))
+
+   #\K (lambda (term char params lq?)
+         (let ((n (car params)))
+           (case n
+             [(0) (terminal-delete-to-end-of-line term)]
+             [(1) (void)] ; TODO this should delete from the start of the line UNTIL the cursor
+             [(2) (terminal-clear-current-line term)]
+             [else (terminal-delete-to-end-of-line term)])))
+   ))
+

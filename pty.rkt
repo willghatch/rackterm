@@ -5,9 +5,6 @@
 
 (provide (all-defined-out))
 
-;(define-ffi-definer define-pty (ffi-lib "pty.h"))
-;(define-ffi-definer define-pty (ffi-lib "libc"))
-;(define-ffi-definer define-pty (ffi-lib "libc.so.6"))
 (define-ffi-definer define-pty (ffi-lib "libutil"))
 
 (define-cstruct _winsize ([ws_row _ushort]
@@ -18,7 +15,7 @@
 ;; when the window size changes, a SIGWINCH signal is sent to the foreground process group
 
 (define (new-winsize [width 80] [height 24])
-  (make-winsize width height 0 0))
+  (make-winsize height width 0 0))
 
 ;; name and termios can both be null, window size needs to be there, though.
 (define-pty openpty (_fun (amaster : (_ptr o _int))
@@ -37,13 +34,6 @@
 
 (unsafe!)
 
-;(define ffi_fd->ports
-;  (get-ffi-obj "scheme_make_fd_output_port" #f
-;               (_fun _int _scheme _int _int -> _scheme)))
-;
-;(define (fd->ports fd name)
-;  ;; fd, fd-name, regfile?, win_textmode?, read_too?
-;  (ffi_fd->ports fd name 0 0 1))
 (define scheme_make_fd_output_port
   (get-ffi-obj "scheme_make_fd_output_port" #f
                (_fun _int _scheme _int _int -> _scheme)))
