@@ -49,10 +49,24 @@
     (define-values (master slave slave-name) (openpty #f #f ws))
     (define-values (m-in m-out) (scheme_make_fd_output_port master "mastername" 0 0))
     (define-values (s-in s-out) (scheme_make_fd_output_port slave "slavename" 0 0))
-    (values m-in m-out s-in s-out)))
+    (values m-in m-out s-in s-out master)))
+
+(define-pty ioctl (_fun
+                   (fd : _int)
+                   (request : _int)
+                   (winsize : (_ptr io _winsize))
+                   -> (ret : _int)
+                   -> (if (< ret 0) (error "ioctl failed")
+                          winsize)))
 
 
-;; in termios.h
-;; TIOCGWINSZ -- get window size
-;; TIOCSWINSZ -- set window size
-;; (both take a pointer to a winsize, and getting sets that struct)
+;; How can I get these from the .h file automatically, so this won't just break?
+(define TIOCSWINSZ #x5413) ; set window size
+(define TIOCGWINSZ #x5414) ; get window size
+
+(define (set-pty-size fd winsize)
+  (ioctl fd TIOCSWINSZ winsize))
+
+(define (get-pty-size fd winsize)
+  (ioctl fd TIOCGWINSZ winsize))
+

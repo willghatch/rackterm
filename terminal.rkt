@@ -24,6 +24,9 @@
   (fun-terminal
    process-in
    process-out
+   ptm-fd
+   current-width
+   current-height
    redraw-callback
    current-char-handler
    current-fg-color
@@ -57,17 +60,25 @@
 (define default-bg-color "black")
 
 (define (init-terminal command redraw-callback)
-  (define-values (m-in m-out s-in s-out) (my-openpty))
+  (define-values (m-in m-out s-in s-out master-fd) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
     (make-terminal (make-empty-fun-terminal)
                    m-in
                    m-out
+                   master-fd
+                   80
+                   24
                    redraw-callback
                    null
                    default-fg-color
                    default-bg-color
                    '())))
 
+(define (terminal-set-size term width height)
+  (printf "setting terminal size: ~a ~a~n" width height)
+  (set-terminal-current-width! term width)
+  (set-terminal-current-height! term height)
+  (printf "return: ~a~n" (set-pty-size (terminal-ptm-fd term) (new-winsize width height))))
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))

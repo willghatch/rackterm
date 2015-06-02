@@ -16,14 +16,34 @@
     (init-field terminal)
     (define/public (get-terminal) terminal)
 
+    (define last-width 0)
+    (define last-height 0)
+
+    (define (resize-maybe width height)
+      (when (or (not (equal? width last-width))
+                (not (equal? height last-height)))
+        (begin
+          (set! last-width width)
+          (set! last-height height)
+          (terminal-set-size terminal width height))))
+
     (define (get-text-width-height)
       (define-values (width height _ __) (send (send this get-dc) get-text-extent "a"))
       (values width height))
 
-    (define/public (get-terminal-size)
+    (define/public (get-xterm-size)
       (define cell-size (send this get-cell-size (cell #\a "white" "black" '())))
       (define-values (x-size y-size) (send (send this get-dc) get-size))
-      (values (floor (/ x-size (car cell-size))) (floor (/ y-size (cadr cell-size)))))
+      (define (trunc num) (inexact->exact (truncate num)))
+      (values (trunc (/ x-size (car cell-size))) (trunc (/ y-size (cadr cell-size)))))
+
+    (define/public (get-cell-size cell)
+      ;; todo -- add font...
+      (let-values [((width height _ __)
+                    (send (send this get-dc)
+                          get-text-extent
+                          (string (cell-character cell))))]
+        (list width height)))
 
     (define/override (on-paint)
       (define dc (send this get-dc))
@@ -32,16 +52,10 @@
       (define cur-x 0)
       (define cur-y y-size) ; start drawing at the bottom left
       ;; How do you just get one value and ignore the others?
-      (define (get-cell-size cell)
-        ;; todo -- add font...
-        (let-values [((width height _ __)
-                      (send (send this get-dc)
-                            get-text-extent
-                            (string (cell-character cell))))]
-          (list width height)))
       (define-values (current-font-width current-font-height) (get-text-width-height))
+      (define-values (xterm-width xterm-height) (send this get-xterm-size))
       (define (get-line-size line)
-        (let* ((cell-sizes (map get-cell-size line))
+        (let* ((cell-sizes (map (lambda (l) (send this get-cell-size l)) line))
                ;; what is the built-in sum function called?
                (width (foldl (lambda (x sum) (+ x sum)) 0 (map car cell-sizes)))
                (height (apply max (cons current-font-height (map cadr cell-sizes)))))
@@ -60,6 +74,8 @@
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
+
+      (resize-maybe xterm-width xterm-height)
       ;; clear to start painting again...
       (send dc set-background "black")
       (send dc clear)
