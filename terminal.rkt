@@ -1,5 +1,6 @@
 #lang racket/base
 (require racket/system) ; for process/ports
+(require racket/draw)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 
@@ -24,7 +25,7 @@
    process-out
    redraw-callback
    current-char-handler
-   current-color
+   current-fg-color
    current-bg-color
    current-cell-attrs)
   #:mutable)
@@ -51,6 +52,9 @@
 (define (terminal-overwrite term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
 
+(define default-fg-color "white")
+(define default-bg-color "black")
+
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
@@ -59,9 +63,10 @@
                    m-out
                    redraw-callback
                    null
-                   'default
-                   'default
+                   default-fg-color
+                   default-bg-color
                    '())))
+
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))
@@ -72,7 +77,7 @@
 
 (define (terminal-make-cell term char)
   (make-cell char
-             (terminal-current-color term)
+             (terminal-current-fg-color term)
              (terminal-current-bg-color term)
              (terminal-current-cell-attrs term)))
 
@@ -171,6 +176,81 @@
         default
         orig)))
 
+(define (color-csi-handler term char params lq?)
+  ;; TODO - check all the ones listed on the wikipedia page for ansi escape codes...
+  ;; there are a lot of obscure ones
+  ;; 24 bit color = CSI-38;2;r;g;bm for fg and 48 instead of 38 for bg
+  ;; for 256 color pallete, CSI-38;5;colorm
+  (set-terminal-current-char-handler! term null)
+  (define (fg color) (set-terminal-current-fg-color! term color))
+  (define (bg color) (set-terminal-current-bg-color! term color))
+  (if (null? params)
+      'done
+      (begin
+        (case (car params)
+          [(0) (begin (fg default-fg-color)
+                      (bg default-bg-color)
+                      (set-terminal-current-cell-attrs! term '()))]
+          [(1) null] ; bold
+          [(2) null]
+          [(4) null]
+          [(5) null]
+          [(7) null]
+          [(10) null]
+          [(11) null]
+          [(12) null]
+          [(21) null]
+          [(22) null]
+          [(24) null]
+          [(25) null]
+          [(27) null]
+          [(30) (fg "black")]
+          [(31) (fg "red")]
+          [(32) (fg "green")]
+          [(33) (fg "brown")]
+          [(34) (fg "blue")]
+          [(35) (fg "magenta")]
+          [(36) (fg "cyan")]
+          [(37) (fg "white")]
+          [(38) null]
+          [(39) null]
+          [(40) (bg "black")]
+          [(41) (bg "red")]
+          [(42) (bg "green")]
+          [(43) (bg "brown")]
+          [(44) (bg "blue")]
+          [(45) (bg "magenta")]
+          [(46) (bg "cyan")]
+          [(47) (bg "white")]
+          [(48) null]
+          [(49) (bg default-bg-color)]
+          [else null])
+        (color-csi-handler term char (cdr params) lq?))))
+
+(define (extended-color-handler term char params fg?)
+  (define set (if fg?
+                  set-terminal-current-fg-color!
+                  set-terminal-current-bg-color!))
+  (cond
+    [(null? params) 'done]
+    [(equal? (car params) 2)
+     (if (< (length params) 4)
+         null
+         (begin
+           (set term (make-color (list-ref params 2) (list-ref params 3) (list-ref params 4)))
+           (color-csi-handler term char (list-tail params 4) #f)))]
+    [(equal? (car params) 5)
+     (if (< (length params 2))
+         null
+         (begin
+           (set term (lookup-256color (cadr params)))
+           (color-csi-handler term char (list-tail params 2) #f)))] ; TODO - add 256 color handling
+    [else (color-csi-handler term char (cdr params) #f)]))
+
+(define (lookup-256color index)
+  ;; TODO - make a table or compute it somehow...
+  (make-color 255 102 0))
+
 (define csi-table
   (hash
    #\@ (lambda (term char params lq?)
@@ -202,5 +282,6 @@
              [(1) (void)] ; TODO this should delete from the start of the line UNTIL the cursor
              [(2) (terminal-clear-current-line term)]
              [else (terminal-delete-to-end-of-line term)])))
+   #\m color-csi-handler
    ))
 

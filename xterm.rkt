@@ -62,6 +62,8 @@
           (for [(cell (reverse line))]
             (print-terminal-cell cell))))
       (define (print-terminal-cell cell)
+        (send dc set-text-background (cell-bg-color cell))
+        (send dc set-text-foreground (cell-fg-color cell))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
@@ -125,7 +127,7 @@
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal "setsid /bin/sh -i -"
+       [terminal (init-terminal "setsid bash -i -"
                                         (lambda ()
                                           (send the-canvas refresh)))]
        [parent frame]
