@@ -3,50 +3,43 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
-; Make a frame by instantiating the frame% class
 (define frame (new frame%
                    [label "racket xterm"]
                    [width 100]
                    [height 100]))
 
-; Show the frame by calling its show method
 (send frame show #t)
 
 
-#;(define msg (new message% [parent frame]
-                 [label "No events so far..."]))
-
-; Derive a new canvas (a drawing window) class to handle events
-;(define my-canvas%
-;  (class canvas% ; The base class is canvas%
-;    ; Define overriding method to handle mouse events
-;    (define/override (on-event event)
-;      (send msg set-label "Canvas mouse"))
-;    ; Define overriding method to handle keyboard events
-;    (define/override (on-char event)
-;      (send msg set-label "Canvas keyboard"))
-;    ; Call the superclass init, passing on all init args
-;    (super-new)))
-
-; Make a canvas that handles events in the frame
-;(new my-canvas% [parent frame])
 (define terminal-canvas%
   (class canvas%
     (init-field terminal)
     (define/public (get-terminal) terminal)
+
+    (define (get-text-width-height)
+      (define-values (width height _ __) (send (send this get-dc) get-text-extent "a"))
+      (values width height))
+
+    (define/public (get-terminal-size)
+      (define cell-size (send this get-cell-size (cell #\a "white" "black" '())))
+      (define-values (x-size y-size) (send (send this get-dc) get-size))
+      (values (floor (/ x-size (car cell-size))) (floor (/ y-size (cadr cell-size)))))
+
     (define/override (on-paint)
       (define dc (send this get-dc))
       ;; I need to keep track of the coordinates and only draw lines inside the max
       (define-values (x-size y-size) (send dc get-size))
       (define cur-x 0)
       (define cur-y y-size) ; start drawing at the bottom left
+      ;; How do you just get one value and ignore the others?
       (define (get-cell-size cell)
         ;; todo -- add font...
         (let-values [((width height _ __)
-                     (send dc get-text-extent (string (cell-character cell))))]
+                      (send (send this get-dc)
+                            get-text-extent
+                            (string (cell-character cell))))]
           (list width height)))
-      ;; How do you just get one value and ignore the others?
-      (define-values (_ current-font-height _- -_) (send dc get-text-extent "a"))
+      (define-values (current-font-width current-font-height) (get-text-width-height))
       (define (get-line-size line)
         (let* ((cell-sizes (map get-cell-size line))
                ;; what is the built-in sum function called?

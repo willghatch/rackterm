@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/system) ; for process/ports
 (require racket/draw)
+(require racket/list)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 
@@ -96,7 +97,7 @@
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-handle-character term char)
-  (printf "handling the character: ~s~n" char)
+  (printf "handling: ~s~n" char)
   (define handler (terminal-current-char-handler term))
   (cond
     [(not (null? handler)) (handler term char)]
@@ -146,7 +147,7 @@
     (case char
       [(#\;) (set-terminal-current-char-handler! term
                                                  (make-csi-handler
-                                                  (cons current-param completed-params)
+                                                  (append completed-params (list current-param))
                                                   0
                                                   leading-question?))]
       [(#\?) (if (and (null? completed-params) (equal? current-param 0))
@@ -166,7 +167,7 @@
        (let ((end-handler (hash-ref csi-table char (lambda ()
                                                      (lambda (term char params lq?)
                                                        (printf "ignored CSI terminator: ~a~n" char))))))
-         (end-handler term char (cons current-param completed-params) leading-question?))])))
+         (end-handler term char (append completed-params (list current-param)) leading-question?))])))
 
 (define new-csi-handler (make-csi-handler '() 0 #f))
 
@@ -212,7 +213,7 @@
           [(35) (fg "magenta")]
           [(36) (fg "cyan")]
           [(37) (fg "white")]
-          [(38) null]
+          [(38) (extended-color-handler term char (cdr params) #t)]
           [(39) null]
           [(40) (bg "black")]
           [(41) (bg "red")]
@@ -222,13 +223,13 @@
           [(45) (bg "magenta")]
           [(46) (bg "cyan")]
           [(47) (bg "white")]
-          [(48) null]
+          [(48) (extended-color-handler term char (cdr params) #f)]
           [(49) (bg default-bg-color)]
           [else null])
         (color-csi-handler term char (cdr params) lq?))))
 
 (define (extended-color-handler term char params fg?)
-  (define set (if fg?
+  (define setc (if fg?
                   set-terminal-current-fg-color!
                   set-terminal-current-bg-color!))
   (cond
@@ -237,13 +238,13 @@
      (if (< (length params) 4)
          null
          (begin
-           (set term (make-color (list-ref params 2) (list-ref params 3) (list-ref params 4)))
+           (setc term (make-color (second params) (third params) (fourth params)))
            (color-csi-handler term char (list-tail params 4) #f)))]
     [(equal? (car params) 5)
-     (if (< (length params 2))
+     (if (< (length params) 2)
          null
          (begin
-           (set term (lookup-256color (cadr params)))
+           (setc term (lookup-256color (second params)))
            (color-csi-handler term char (list-tail params 2) #f)))] ; TODO - add 256 color handling
     [else (color-csi-handler term char (cdr params) #f)]))
 
@@ -252,6 +253,15 @@
   (make-color 255 102 0))
 
 (define csi-table
+  ;; a quick look at what codes are skipped with a trivial run of vim
+  ;; H c h l
+  ;; emacs
+  ;; h c d H
+  ;; less
+  ;; H
+  ;; H is set row,col
+  ;; c is "tell me what kind of terminal you are"
+  ;; h/l are set/reset various modes
   (hash
    #\@ (lambda (term char params lq?)
          (for ((i (in-range (car-defaulted params 1))))
