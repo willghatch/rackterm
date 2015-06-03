@@ -21,7 +21,7 @@
 (define-struct cell
   (character fg-color bg-color attr-list)) ; maybe just have a list of attrs, so
   ; the average cell doesn't have as much data...
-(define blank-cell (make-cell #\space 'default 'default '()))
+(define blank-cell (make-cell #\space "white" "white" '()))
 
 ;; lines are a series of cells.  I should have normal mode output keep in one line and wrap it according to terminal size (and re-wrapping on size change)
 
@@ -216,9 +216,9 @@
   (cursor-line-length-cells-before-cursor (fun-terminal-line-with-cursor term)))
 
 (define (fun-terminal-get-rows-from-end term)
-  (fun-terminal-lines-after-cursor term))
+  (fun-terminal-length-lines-after-cursor term))
 
 (define (fun-terminal-get-num-rows term)
-  (+ (fun-terminal-lines-after-cursor term)
-     (fun-terminal-lines-before-cursor term)
+  (+ (fun-terminal-length-lines-after-cursor term)
+     (fun-terminal-length-lines-before-cursor term)
      1))

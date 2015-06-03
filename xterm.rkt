@@ -3,7 +3,7 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
-(define my-terminal (init-terminal4 (lambda ()
+(define my-terminal (init-terminal2 (lambda ()
                                       (send the-canvas refresh))
                                     "/bin/bash" "-i"))
 
@@ -30,6 +30,7 @@
           (set! last-width width)
           (set! last-height height)
           (terminal-set-size terminal width height))))
+    (resize-maybe 80 24) ; call at startup so it initializes well
 
     (define (get-text-width-height)
       (define-values (width height _ __) (send (send this get-dc) get-text-extent "a"))
@@ -79,7 +80,8 @@
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
 
-      (resize-maybe xterm-width xterm-height)
+      ;(resize-maybe xterm-width xterm-height)
+
       ;; clear to start painting again...
       (send dc set-background "black")
       (send dc clear)

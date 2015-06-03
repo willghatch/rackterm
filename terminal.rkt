@@ -104,6 +104,7 @@
                    m-in
                    m-out
                    master-fd
+                   slave-fd
                    80
                    24
                    redraw-callback
@@ -112,12 +113,13 @@
                    default-bg-color
                    '())))
 (define (init-terminal command redraw-callback)
-  (define-values (m-in m-out s-in s-out master-fd) (my-openpty))
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
     (make-terminal (make-empty-fun-terminal)
                    m-in
                    m-out
                    master-fd
+                   slave-fd
                    80
                    24
                    redraw-callback
@@ -128,6 +130,12 @@
 
 (define (terminal-set-size term width height)
   (printf "setting terminal size: ~a ~a~n" width height)
+  (define n-rows (fun-terminal-get-num-rows (terminal-fun-terminal term)))
+  (define row-diff (- height n-rows))
+  (when (> row-diff 0)
+    (for ((i (in-range row-diff)))
+      (terminal-line-break-at-cursor term)))
+
   (set-terminal-current-width! term width)
   (set-terminal-current-height! term height)
   (set-pty-size (terminal-pts-fd term) (new-winsize width height)))
@@ -150,11 +158,20 @@
 
 (define (terminal-get-column term)
   (fun-terminal-get-column (terminal-fun-terminal term)))
+(define (terminal-get-row term)
+  (let* ((from-end (fun-terminal-get-rows-from-end (terminal-fun-terminal term)))
+         (size (terminal-current-height term)))
+    (- size from-end 1)))
 
 (define (terminal-go-to-column term column)
   (let* ((cur-column (terminal-get-column term))
         (diff (column . - . cur-column)))
     (terminal-forward-chars term diff)))
+(define (terminal-go-to-row term row)
+  (let* ((cur-row (terminal-get-row term))
+        (diff (row . - . cur-row)))
+    (terminal-forward-lines term diff)))
+
 
 (define (terminal-overwrite-character term char)
   (terminal-overwrite term (terminal-make-cell term char)))
@@ -194,7 +211,7 @@
     [(#\u0F) null] ;; activate G0 character set
     [(#\u1B) (set-terminal-current-char-handler! term escape-handler)] ;; start escape sequence
     [(#\u9B) (set-terminal-current-char-handler! term new-csi-handler)]
-    [else null]))
+    [else (printf "ignored control char: ~s~n" char)]))
 
 (define (escape-handler term char)
   ;; IE handling after receiving ESC character
@@ -202,7 +219,7 @@
   (case char
     [(#\D) (terminal-forward-lines term)]
     [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
-    [else null]))
+    [else (printf "ignored escaped character: ~s~n" char)]))
 
 (define (make-csi-handler completed-params current-param leading-question?)
   (lambda (term char)
@@ -239,6 +256,11 @@
     (if (equal? 0 orig)
         default
         orig)))
+(define (cadr-defaulted l default)
+  (cond
+    [(< (length l) 2) default]
+    [(equal? (cadr l) 0) default]
+    [else (cadr l)]))
 
 (define (color-csi-handler term char params lq?)
   ;; TODO - check all the ones listed on the wikipedia page for ansi escape codes...
@@ -347,6 +369,9 @@
          (terminal-forward-lines term (- (car-defaulted params 1))))
    #\G (lambda (term char params lq?)
          (terminal-go-to-column term (sub1 (car-defaulted params 1))))
+   #\H (lambda (term char params lq?)
+         (terminal-go-to-row term (sub1 (car-defaulted params 1)))
+         (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
 
    #\K (lambda (term char params lq?)
          (let ((n (car params)))
