@@ -356,7 +356,7 @@
 
 (define (lookup-256color index)
   ;; TODO - make a table or compute it somehow...
-  (make-color 255 102 0))
+  (make-color (random 256) (random 256) (random 256)))
 
 (define csi-table
   ;; a quick look at what codes are skipped with a trivial run of vim
