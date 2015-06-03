@@ -71,7 +71,7 @@
                (line-height (cadr line-size)))
           (set! cur-y (- cur-y line-height))
           (set! cur-x 0)
-          (for [(cell (reverse line))]
+          (for [(cell line)]
             (print-terminal-cell cell))))
       (define (print-terminal-cell cell)
         (send dc set-text-background (cell-bg-color cell))
