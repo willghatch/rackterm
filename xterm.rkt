@@ -3,6 +3,10 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
+(define my-terminal (init-terminal4 (lambda ()
+                                      (send the-canvas refresh))
+                                    "/bin/bash" "-i"))
+
 (define frame (new frame%
                    [label "racket xterm"]
                    [width 100]
@@ -136,9 +140,7 @@
 
 (define the-canvas
   (new terminal-canvas%
-       [terminal (init-terminal2 (lambda ()
-                                  (send the-canvas refresh))
-                                "/bin/bash" "-i")]
+       [terminal my-terminal]
        [parent frame]
        ;[style '(no-autoclear)]
        ))

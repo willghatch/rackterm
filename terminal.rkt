@@ -25,6 +25,7 @@
    process-in
    process-out
    ptm-fd
+   pts-fd
    current-width
    current-height
    redraw-callback
@@ -59,8 +60,43 @@
 (define default-fg-color "white")
 (define default-bg-color "black")
 
+(define (init-terminal4 redraw-callback command . command-args)
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
+    (define-values (subproc sub-in sub-out sub-err)
+      (apply subprocess (append (list s-out s-in 'stdout
+                                      "/usr/bin/racket" "/home/wgh/mk/rackterm/set-tty.rkt"
+                                      (number->string slave-fd)
+                                      command)
+                                command-args)))
+    (make-terminal (make-empty-fun-terminal)
+                   m-in
+                   m-out
+                   master-fd
+                   slave-fd
+                   80
+                   24
+                   redraw-callback
+                   null
+                   default-fg-color
+                   default-bg-color
+                   '()))
+(define (init-terminal3 redraw-callback command . command-args)
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
+  (apply subproc-with-new-controlling-tty (append (list slave-fd command) command-args))
+  (make-terminal (make-empty-fun-terminal)
+                 m-in
+                 m-out
+                 master-fd
+                 slave-fd
+                 80
+                 24
+                 redraw-callback
+                 null
+                 default-fg-color
+                 default-bg-color
+                 '()))
 (define (init-terminal2 redraw-callback command . command-args)
-  (define-values (m-in m-out s-in s-out master-fd) (my-openpty))
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (parameterize ([subprocess-group-enabled #t])
     (define-values (subproc sub-in sub-out sub-err)
       (apply subprocess (append (list s-out s-in 'stdout "/usr/bin/setsid") (cons command command-args))))
@@ -94,7 +130,7 @@
   (printf "setting terminal size: ~a ~a~n" width height)
   (set-terminal-current-width! term width)
   (set-terminal-current-height! term height)
-  (printf "return: ~a~n" (set-pty-size (terminal-ptm-fd term) (new-winsize width height))))
+  (set-pty-size (terminal-pts-fd term) (new-winsize width height)))
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))
