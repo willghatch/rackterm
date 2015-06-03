@@ -1,5 +1,7 @@
 #lang racket/base
 
+;; For handling all the system calls to unix to set up a PTY
+
 (require ffi/unsafe
          ffi/unsafe/define)
 (require racket/list)

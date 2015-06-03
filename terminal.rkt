@@ -12,13 +12,14 @@
 
 
 ;; TODO:
-;; - I want something better than wrapping a command in setsid to set a new process group
-;; - the 'who' command doesn't show my racket xterms...
+;; - the 'who' command doesn't show my racket xterms... Also of note: it doesn't show for
+;;   st terminals either, which is where I looked at how to do the pty stuff.
 ;; - /bin/sh enters a space once it reaches the last character of terminal width, then a return character.
 ;;   I believe the default behaviour would be to enter the space on the next line down, then
 ;;   the carriage return would go to the start of the line...
 ;;   I can either split the line or do a bunch of handling to make carriage returns only go back
-;;   to the line start modulo official line width
+;;   to the line start modulo official line width.
+;;   There is a switch to toggle auto-wrapping on end of line or not in the "h" CSI toggles.
 ;; - I need to report my actual terminal size...
 
 (define-struct terminal
@@ -81,6 +82,9 @@
 
 (define default-fg-color "white")
 (define default-bg-color "black")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; These are experiments on how I should best open the subprocess...
 
 (define (init-terminal4 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))

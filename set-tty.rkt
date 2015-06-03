@@ -1,5 +1,8 @@
 #lang racket/base
 
+;; this is simply a wrapper to execute some other program... one of my experiments
+;; to properly start the subprocess...
+
 (require "pty.rkt")
 
 ;; current-command-line-args should be '(tty-fd command args)

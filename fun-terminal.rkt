@@ -4,24 +4,6 @@
 
 (provide
  (all-defined-out)
- make-empty-fun-terminal
- fun-terminal-length-lines-after-cursor
- fun-terminal->lines-from-end
- fun-terminal-insert-at-cursor
- fun-terminal-delete-backwards-at-cursor
- fun-terminal-line-break-at-cursor
- fun-terminal-forward-lines
- fun-terminal-forward-cells
- fun-terminal-get-column
- fun-terminal-get-rows-from-end
- fun-terminal-get-num-rows
- fun-terminal-delete-to-end-of-line
- fun-terminal-clear-line
- fun-terminal-overwrite
- fun-terminal-add-blank-line-at-end
- fun-terminal-delete-lines-after-cursor
- fun-terminal-delete-n-lines-before-cursor
- (struct-out cell)
  )
 
 ;; Cells - each cell has RGBA color, background, a unicode character, attributes such as underline, blink, italic... similar to emacs face properties.  Maybe font?  Cell size?  Images could be large cells?
