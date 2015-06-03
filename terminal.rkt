@@ -4,6 +4,7 @@
 (require racket/list)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
+(require "256color.rkt")
 
 
 (provide (all-defined-out)
@@ -353,10 +354,6 @@
            (setc term (lookup-256color (second params)))
            (color-csi-handler term char (list-tail params 2) #f)))] ; TODO - add 256 color handling
     [else (color-csi-handler term char (cdr params) #f)]))
-
-(define (lookup-256color index)
-  ;; TODO - make a table or compute it somehow...
-  (make-color (random 256) (random 256) (random 256)))
 
 (define csi-table
   ;; a quick look at what codes are skipped with a trivial run of vim
