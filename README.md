@@ -6,5 +6,3 @@ It is not yet really packaged or anything.  To run the xterm, run `racket xterm.
 
 It has many issues, but you can run vim on it.
 
-For now, use `TERM=linux` to not get a bunch of xterm garbage that it doesn't handle yet.
-
