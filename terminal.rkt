@@ -44,6 +44,8 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-insert-at-cursor ft cell))))
 (define (terminal-delete-backwards-at-cursor term)
   (terminal-mutate term (lambda (ft) (fun-terminal-delete-backwards-at-cursor ft))))
+(define (terminal-clear-from-start-of-line-to-cursor term)
+  (terminal-mutate term (lambda (ft) (fun-terminal-clear-from-start-of-line-to-cursor ft))))
 (define (terminal-line-break-at-cursor term)
   (terminal-mutate term (lambda (ft) (fun-terminal-line-break-at-cursor ft))))
 (define (terminal-delete-to-end-of-line term)
@@ -61,7 +63,7 @@
 (define (terminal-clear-from-cursor-to-end term)
   (define n-lines (fun-terminal-length-lines-after-cursor (terminal-fun-terminal term)))
   (terminal-delete-to-end-of-line term)
-  (terminal-mutate term (lambda (ft) (fun-terminal-delete-lines-after-cursor term)))
+  (terminal-mutate term (lambda (ft) (fun-terminal-delete-lines-after-cursor ft)))
   (for ((i (in-range n-lines)))
     (terminal-append-line-at-end term)))
 (define (terminal-insert-blank term [n 1])
@@ -392,13 +394,55 @@
          (terminal-go-to-row term (sub1 (car-defaulted params 1)))
          (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
 
+   #\J (lambda (term char params lq?)
+         (let ((n (car params)))
+           (case n
+             ;; 3 is supposed to clear including the scrollback buffer in the Linux
+             ;;   terminal, but I don't think I care for that feature.
+             [(2) (begin
+                    (terminal-clear-from-start-to-cursor term)
+                    (terminal-clear-from-cursor-to-end term))]
+             [(1) (terminal-clear-from-start-to-cursor term)]
+             ;; 0
+             [else (terminal-clear-from-cursor-to-end term)])))
+
    #\K (lambda (term char params lq?)
          (let ((n (car params)))
            (case n
-             [(0) (terminal-delete-to-end-of-line term)]
-             [(1) (void)] ; TODO this should delete from the start of the line UNTIL the cursor
              [(2) (terminal-clear-current-line term)]
+             [(1) (terminal-clear-from-start-of-line-to-cursor)]
+             ;; 0
              [else (terminal-delete-to-end-of-line term)])))
+   ;; L - insert n blank lines
+   ;; M - delete n lines
+   ;; P - delete n characters on current line
+   ;; X - erase n characters on current line
+
+   ;; Half of these are duplicates. Stupid.
+   #\a (lambda (term char params lq?)
+         (terminal-forward-chars term (car-defaulted params 1)))
+   ;; b... I don't see a spec for it
+   ;; c -- some sort of terminal identification...
+   #\d (lambda (term char params lq?)
+         (terminal-go-to-row term (sub1 (car-defaulted params 1))))
+   #\e (lambda (term char params lq?)
+         (terminal-forward-lines term (car-defaulted params 1)))
+   #\f (lambda (term char params lq?)
+         (terminal-go-to-row term (sub1 (car-defaulted params 1)))
+         (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
+   ;; g - 0 - clear tab stop at current position
+   ;;     3 - delete all tab stops
+   ;; h - set mode
+   ;; l - reset mode
+
    #\m color-csi-handler
+
+   ;; n - status report
+   ;; q - keyboard LEDs
+   ;; r - set scrolling region
+   ;; s - save cursor location
+   ;; u - restore cursor location
+   #\` (lambda (term char params lq?)
+         (terminal-go-to-column term (sub1 (car-defaulted params 1))))
    ))
 
