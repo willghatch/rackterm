@@ -51,6 +51,7 @@
         (list width height)))
 
     (define/override (on-paint)
+      (send frame set-label (terminal-title terminal))
       (define dc (send this get-dc))
       ;; I need to keep track of the coordinates and only draw lines inside the max
       (define-values (x-size y-size) (send dc get-size))

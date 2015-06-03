@@ -34,7 +34,9 @@
    current-char-handler
    current-fg-color
    current-bg-color
-   current-cell-attrs)
+   current-cell-attrs
+   title
+   )
   #:mutable)
 
 (define (terminal-mutate terminal fun-terminal-function)
@@ -105,7 +107,9 @@
                    null
                    default-fg-color
                    default-bg-color
-                   '()))
+                   '()
+                   "rackterm"
+                   ))
 (define (init-terminal3 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (apply subproc-with-new-controlling-tty (append (list slave-fd command) command-args))
@@ -120,7 +124,9 @@
                  null
                  default-fg-color
                  default-bg-color
-                 '()))
+                 '()
+                 "rackterm"
+                 ))
 (define (init-terminal2 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (parameterize ([subprocess-group-enabled #t])
@@ -137,7 +143,9 @@
                    null
                    default-fg-color
                    default-bg-color
-                   '())))
+                   '()
+                   "rackterm"
+                   )))
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
@@ -152,7 +160,9 @@
                    null
                    default-fg-color
                    default-bg-color
-                   '())))
+                   '()
+                   "rackterm"
+                   )))
 
 (define (terminal-set-size term width height)
   (printf "setting terminal size: ~a ~a~n" width height)
@@ -298,7 +308,10 @@
 
 (define (osc-handler-finish term numeric-arg text)
   (set-terminal-current-char-handler! term null)
-  (void))
+  (case numeric-arg
+    [(0 1 2) (set-terminal-title! term text)]
+    [(3) (void)] ; this should set X properties.
+    [else (void)])) ; aaaand some other stuff.
 
 (define (make-ignore-next-n-characters-handler n)
   (lambda (term char)
