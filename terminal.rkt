@@ -245,7 +245,69 @@
   (case char
     [(#\D) (terminal-forward-lines term)]
     [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
+    [(#\]) (set-terminal-current-char-handler! term new-osc-handler)]
+
+    ;; for setting 7 or 8 bit controls, ascii conformance...
+    [(#\space) (set-terminal-current-char-handler! term ignore-next-char)]
+
+    ;;; The rest are less important
+    [(#\#) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\%) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\+) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\-) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\*) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\/) (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\.) (set-terminal-current-char-handler! term ignore-next-char)]
+
+
+    ;; these paren ones have something to do with setting character sets
+    [(#\() (set-terminal-current-char-handler! term ignore-next-char)]
+    [(#\)) (set-terminal-current-char-handler! term ignore-next-char)]
     [else (printf "ignored escaped character: ~s~n" char)]))
+
+(define (make-osc-handler numeric-arg)
+  ;; osc sequences are "ESC ] number ; <usually text> <ST - string terminator>
+  (lambda (term char)
+    (case char
+      [(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
+       (set-terminal-current-char-handler!
+        term
+        (make-osc-handler (+ (* 10 numeric-arg)
+                             (read (open-input-string (string char))))))]
+      ;; the only other character should be the semicolon
+      [else (set-terminal-current-char-handler! term
+                                                (make-osc-text-handler numeric-arg "" #f))])))
+(define new-osc-handler (make-osc-handler 0))
+(define (make-osc-text-handler numeric-arg text previous-char)
+  (lambda (term char)
+    ;; the string terminator is ESC-\
+    ;; but xterm seems to support just #\u07 (ascii BELL)
+    (cond ((and (equal? char #\\)
+                (equal? previous-char #\u1B))
+           (osc-handler-finish term numeric-arg text))
+          ((equal? char #\u07)
+           (osc-handler-finish term numeric-arg (string-append text (string previous-char))))
+          (else (set-terminal-current-char-handler!
+                term
+                (let ((new-text (if previous-char
+                                    (string-append text (string previous-char))
+                                    "")))
+                  (make-osc-text-handler numeric-arg
+                                         new-text
+                                         char)))))))
+
+(define (osc-handler-finish term numeric-arg text)
+  (set-terminal-current-char-handler! term null)
+  (void))
+
+(define (make-ignore-next-n-characters-handler n)
+  (lambda (term char)
+    (if (n . < . 2)
+        (set-terminal-current-char-handler! term null)
+        (set-terminal-current-char-handler!
+         term
+         (make-ignore-next-n-characters-handler (sub1 n))))))
+(define ignore-next-char (make-ignore-next-n-characters-handler 1))
 
 (define (make-csi-handler completed-params current-param leading-question?)
   (lambda (term char)
