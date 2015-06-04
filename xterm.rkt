@@ -110,8 +110,7 @@
         (if (char? key)
             (for ((char (map-event-to-terminal-codes event)))
               (send-char-to-terminal-process terminal char))
-            null))
-      (send this on-paint))
+            null)))
 
     (super-new)
     ;; start thread to listen for input from the subprocess
