@@ -261,4 +261,4 @@
     [(252) (make-color #xd0 #xd0 #xd0)]
     [(253) (make-color #xda #xda #xda)]
     [(254) (make-color #xe4 #xe4 #xe4)]
-    [(255) (make-color #xee #xee #xee)]))
+    [else (make-color #xee #xee #xee)]))
