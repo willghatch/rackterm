@@ -143,6 +143,10 @@
         (terminal-scroll-region term beyond))))
 
 (define (terminal-overwrite term cell)
+  ;; This may need looking into when I want to handle re-wrapping on size changes
+  (when (equal? (terminal-get-column term) (terminal-current-width term))
+    (terminal-forward-lines term 1)
+    (terminal-go-to-column term 0))
   (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
 (define (terminal-append-line-at-end term)
   (terminal-mutate term (lambda (ft) (fun-terminal-add-blank-line-at-end ft))))
