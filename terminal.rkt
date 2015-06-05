@@ -35,6 +35,7 @@
    current-fg-color
    current-bg-color
    current-cell-attrs
+   current-scroll-region ; pair of start-line, end-line
    title
    )
   #:mutable)
@@ -43,6 +44,14 @@
   (set-terminal-fun-terminal! terminal
                               (fun-terminal-function (terminal-fun-terminal
                                                       terminal))))
+(define (terminal-scroll-region term n-scrolls)
+  (let* ((cursor-line-num (terminal-get-row term))
+         (region (terminal-current-scroll-region term))
+         (region-start (car region))
+         (region-end (cdr region))
+         (n-pre (cursor-line-num . - . region-start))
+         (n-post (region-end . - . cursor-line-num)))
+  (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))))
 
 (define (terminal-insert-at-cursor term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-insert-at-cursor ft cell))))
@@ -59,7 +68,9 @@
 (define (terminal-forward-chars term [n 1])
   (terminal-mutate term (lambda (ft) (fun-terminal-forward-cells ft n))))
 (define (terminal-forward-lines term [n 1])
-  (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n))))
+  (if (null? (terminal-current-scroll-region term))
+      (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n)))
+      (terminal-scroll-region term n)))
 (define (terminal-overwrite term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
 (define (terminal-append-line-at-end term)
@@ -108,6 +119,7 @@
                    default-fg-color
                    default-bg-color
                    '()
+                   null
                    "rackterm"
                    ))
 (define (init-terminal3 redraw-callback command . command-args)
@@ -125,6 +137,7 @@
                  default-fg-color
                  default-bg-color
                  '()
+                 null
                  "rackterm"
                  ))
 (define (init-terminal2 redraw-callback command . command-args)
@@ -144,6 +157,7 @@
                    default-fg-color
                    default-bg-color
                    '()
+                   null
                    "rackterm"
                    )))
 (define (init-terminal command redraw-callback)
@@ -161,6 +175,7 @@
                    default-fg-color
                    default-bg-color
                    '()
+                   null
                    "rackterm"
                    )))
 
