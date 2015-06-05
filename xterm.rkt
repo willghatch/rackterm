@@ -6,6 +6,8 @@
 (define my-terminal (init-terminal2 (lambda ()
                                       (send the-canvas refresh))
                                     "/bin/bash" "-i"))
+;; TODO - move this into the initialization function...
+(terminal-set-default-tab-stops my-terminal)
 
 (define frame (new frame%
                    [label "racket xterm"]

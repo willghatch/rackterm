@@ -2,6 +2,7 @@
 (require racket/system) ; for process/ports
 (require racket/draw)
 (require racket/list)
+(require racket/stream)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 (require "256color.rkt")
@@ -244,14 +245,31 @@
   (set-terminal-current-height! term height)
   (set-pty-size (terminal-pts-fd term) (new-winsize width height)))
 
-(define (terminal-set-tab-stop term index)
-  (let ((stops (terminal-current-tab-stops term)))
-    (unless (member index stops)
-      (set-terminal-current-tab-stops! term (sort (cons index stops) <)))))
-(define (terminal-remove-tab-stop term index)
-  (set-terminal-current-tab-stops! term (remove index (terminal-current-tab-stops term))))
+(define (terminal-set-tab-stop term)
+  (let ((stops (terminal-current-tab-stops term))
+        (col (terminal-get-column term)))
+    (unless (member col stops)
+      (set-terminal-current-tab-stops! term (sort (cons col stops) <)))))
+(define (terminal-remove-tab-stop term)
+  (set-terminal-current-tab-stops! term (remove (terminal-get-column term)
+                                                (terminal-current-tab-stops term))))
 (define (terminal-remove-all-tab-stops term)
   (set-terminal-current-tab-stops! term '()))
+(define (terminal-set-default-tab-stops term)
+  (set-terminal-current-tab-stops! term (map (lambda (x) (* 8 x))
+                                             (stream->list (in-range 50)))))
+
+(define (terminal-go-to-next-tab-stop term)
+  (define (find-tab tabs column)
+    (cond [(null? tabs)
+           (sub1 (terminal-current-width term))]
+          [(<= (car tabs) column)
+           (find-tab (cdr tabs) column)]
+          [else (car tabs)]))
+  (let* ((cur-col (terminal-get-column term))
+         (next-tab (find-tab (terminal-current-tab-stops term) cur-col))
+         (diff (- next-tab cur-col)))
+    (terminal-forward-chars term diff)))
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))
@@ -317,7 +335,7 @@
   (case char
     [(#\u07) null] ;; BEEP!
     [(#\u08) (terminal-forward-chars term -1)] ;; backspace
-    [(#\u09) null] ;; tab
+    [(#\u09) (terminal-go-to-next-tab-stop term)]
     [(#\newline #\u0B #\u0C) (terminal-forward-lines term)]
     [(#\return) (terminal-go-to-column term 0)] ;; carriage return...
     [(#\u0E) null] ;; activate G1 character set
@@ -331,6 +349,7 @@
   (set-terminal-current-char-handler! term null)
   (case char
     [(#\D) (terminal-forward-lines term)]
+    [(#\H) (terminal-set-tab-stop term)]
     [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
     [(#\]) (set-terminal-current-char-handler! term new-osc-handler)]
 
@@ -594,6 +613,11 @@
          (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
    ;; g - 0 - clear tab stop at current position
    ;;     3 - delete all tab stops
+   #\g (lambda (term char params lq?)
+         (let ((arg (car-defaulted params 1)))
+           (if (equal? arg 3)
+               (terminal-remove-all-tab-stops term)
+               (terminal-remove-tab-stop term))))
    ;; h - set mode
    ;; l - reset mode
 
