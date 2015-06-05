@@ -132,13 +132,17 @@
          (m3 (send event get-mod3-down))
          (m4 (send event get-mod4-down))
          (m5 (send event get-mod5-down))
-         (key-with-ctl (if ctl (control-version key) key)))
+         (key-with-ctl (if ctl (control-version key) key))
+         (key-backspace-hack (if (equal? key-with-ctl #\u08)
+                                 #\u7F
+                                 key-with-ctl))
+         )
     ;; note, there is also a C+M=altr option here...
     ;; some day I'll have some table lookup for extra values...
     ;(printf "key: ~a, ctl: ~a, alt: ~a, meta: ~a" key ctl alt meta)
     (if (or alt meta)
-        (list #\033 key-with-ctl)
-        (list key-with-ctl))))
+        (list #\033 key-backspace-hack)
+        (list key-backspace-hack))))
 
 (define the-canvas
   (new terminal-canvas%
