@@ -29,7 +29,9 @@
 ;;   translated at the control sequence handling.
 
 (define-struct terminal
-  (fun-terminal
+  (fun-terminal-norm
+   fun-terminal-alt
+   current-alt-screen-state
    process-in
    process-out
    ptm-fd
@@ -46,6 +48,35 @@
    title
    )
   #:mutable)
+
+(define (-init-terminal m-in m-out master-fd slave-fd redraw-callback)
+  (make-terminal the-empty-fun-terminal
+                 the-empty-fun-terminal
+                 #f
+                 m-in
+                 m-out
+                 master-fd
+                 slave-fd
+                 80
+                 24
+                 redraw-callback
+                 null
+                 default-fg-color
+                 default-bg-color
+                 '()
+                 null
+                 '()
+                 "rackterm"
+                 ))
+
+(define (terminal-fun-terminal term)
+  (if (terminal-current-alt-screen-state term)
+      (terminal-fun-terminal-alt term)
+      (terminal-fun-terminal-norm term)))
+(define (set-terminal-fun-terminal! term ft)
+  (if (terminal-current-alt-screen-state term)
+      (set-terminal-fun-terminal-alt! term ft)
+      (set-terminal-fun-terminal-norm! term ft)))
 
 (define (terminal-mutate terminal fun-terminal-function)
   (set-terminal-fun-terminal! terminal
@@ -151,87 +182,27 @@
 
 (define (init-terminal4 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
-    (define-values (subproc sub-in sub-out sub-err)
-      (apply subprocess (append (list s-out s-in 'stdout
-                                      "/usr/bin/racket" "/home/wgh/mk/rackterm/set-tty.rkt"
-                                      (number->string slave-fd)
-                                      command)
-                                command-args)))
-    (make-terminal (make-empty-fun-terminal)
-                   m-in
-                   m-out
-                   master-fd
-                   slave-fd
-                   80
-                   24
-                   redraw-callback
-                   null
-                   default-fg-color
-                   default-bg-color
-                   '()
-                   null
-                   '()
-                   "rackterm"
-                   ))
+  (define-values (subproc sub-in sub-out sub-err)
+    (apply subprocess (append (list s-out s-in 'stdout
+                                    "/usr/bin/racket" "/home/wgh/mk/rackterm/set-tty.rkt"
+                                    (number->string slave-fd)
+                                    command)
+                              command-args)))
+  (-init-terminal m-in m-out master-fd slave-fd redraw-callback))
 (define (init-terminal3 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (apply subproc-with-new-controlling-tty (append (list slave-fd command) command-args))
-  (make-terminal (make-empty-fun-terminal)
-                 m-in
-                 m-out
-                 master-fd
-                 slave-fd
-                 80
-                 24
-                 redraw-callback
-                 null
-                 default-fg-color
-                 default-bg-color
-                 '()
-                 null
-                 '()
-                 "rackterm"
-                 ))
+  (-init-terminal m-in m-out master-fd slave-fd redraw-callback))
 (define (init-terminal2 redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (parameterize ([subprocess-group-enabled #t])
     (define-values (subproc sub-in sub-out sub-err)
       (apply subprocess (append (list s-out s-in 'stdout "/usr/bin/setsid") (cons command command-args))))
-    (make-terminal (make-empty-fun-terminal)
-                   m-in
-                   m-out
-                   master-fd
-                   slave-fd
-                   80
-                   24
-                   redraw-callback
-                   null
-                   default-fg-color
-                   default-bg-color
-                   '()
-                   null
-                   '()
-                   "rackterm"
-                   )))
+    (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
 (define (init-terminal command redraw-callback)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (let ((proc (process/ports s-out s-in 'stdout command)))
-    (make-terminal (make-empty-fun-terminal)
-                   m-in
-                   m-out
-                   master-fd
-                   slave-fd
-                   80
-                   24
-                   redraw-callback
-                   null
-                   default-fg-color
-                   default-bg-color
-                   '()
-                   null
-                   '()
-                   "rackterm"
-                   )))
+    (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
 
 (define (terminal-set-size term width height)
   (printf "setting terminal size: ~a ~a~n" width height)
@@ -459,6 +430,26 @@
     [(equal? (cadr l) 0) default]
     [else (cadr l)]))
 
+(define (handle-set-mode term char params private?)
+  ;; reset if l, set if h
+  (define reset? (equal? char #\l))
+  (define (ignore)
+    (printf "ignoring mode set - reset? ~a, private? ~a, params ~a~n"
+            reset? private? params))
+  (define setting (car-defaulted params 0))
+  (if private?
+      (case setting
+        [(1049) (begin
+                  (set-terminal-current-alt-screen-state! term (not reset?))
+                  (set-terminal-fun-terminal-alt! term the-empty-fun-terminal))]
+        [else (ignore)])
+      (case setting
+        [else (ignore)]))
+  ;; recurse to handle any more settings, because they can be set in groups
+  (if (null? (cdr params))
+      (void)
+      (handle-set-mode term char (cdr params) private?)))
+
 (define (color-csi-handler term char params lq?)
   ;; TODO - check all the ones listed on the wikipedia page for ansi escape codes...
   ;; there are a lot of obscure ones
@@ -620,6 +611,8 @@
                (terminal-remove-tab-stop term))))
    ;; h - set mode
    ;; l - reset mode
+   #\h handle-set-mode
+   #\l handle-set-mode
 
    #\m color-csi-handler
 

@@ -20,7 +20,7 @@
    cells-after-cursor ; non-reversed list
    length-cells-before-cursor) ; AKA cursor position
   #:transparent)
-(define (make-empty-cursor-line)
+(define the-empty-cursor-line
   (make-cursor-line '() '() 0))
 
 (define-struct fun-terminal
@@ -29,8 +29,8 @@
    line-with-cursor
    length-lines-before-cursor
    length-lines-after-cursor))
-(define (make-empty-fun-terminal)
-  (make-fun-terminal '() '() (make-empty-cursor-line) 0 0))
+(define the-empty-fun-terminal
+  (make-fun-terminal '() '() the-empty-cursor-line 0 0))
 
 (define (cursor-line->normal-line line [style-cursor? #f])
   (define (style c)
@@ -166,7 +166,7 @@
   (let* ((new-lines-before (cons (cursor-line->normal-line
                                   (fun-terminal-line-with-cursor terminal))
                                  (fun-terminal-lines-before-cursor terminal)))
-         (new-cursor-line (make-empty-cursor-line)))
+         (new-cursor-line the-empty-cursor-line))
     (struct-copy fun-terminal terminal
                  [lines-before-cursor new-lines-before]
                  [length-lines-before-cursor
@@ -236,7 +236,7 @@
 
 (define (fun-terminal-clear-line term)
   (struct-copy fun-terminal term
-               [line-with-cursor (make-empty-cursor-line)]))
+               [line-with-cursor the-empty-cursor-line]))
 
 (define (fun-terminal->lines-from-end terminal [style-cursor? #f])
   ;; gives the lines in reverse order, because the last lines will be the ones used first
