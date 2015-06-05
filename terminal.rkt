@@ -22,6 +22,11 @@
 ;;   There is a switch to toggle auto-wrapping on end of line or not in the "h" CSI toggles.
 ;; - I need to report my actual terminal size...
 
+;; Some notes:
+;; - The spec uses 1 based cell addressing -- IE 1,1 is the origin at the top left corner.
+;;   I dislike 1 based indexing, so internally I use 0 based indexing.  Things are
+;;   translated at the control sequence handling.
+
 (define-struct terminal
   (fun-terminal
    process-in
@@ -35,7 +40,7 @@
    current-fg-color
    current-bg-color
    current-cell-attrs
-   current-scroll-region ; pair of start-line, end-line
+   current-scrolling-region ; (cons start-line, end-line)
    title
    )
   #:mutable)
@@ -45,13 +50,16 @@
                               (fun-terminal-function (terminal-fun-terminal
                                                       terminal))))
 (define (terminal-scroll-region term n-scrolls)
-  (let* ((cursor-line-num (terminal-get-row term))
-         (region (terminal-current-scroll-region term))
-         (region-start (car region))
-         (region-end (cdr region))
-         (n-pre (cursor-line-num . - . region-start))
-         (n-post (region-end . - . cursor-line-num)))
-  (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))))
+  (unless (equal? n-scrolls 0)
+    (printf "scrolling... ~a lines~n" n-scrolls)
+    (let* ((cursor-line-num (terminal-get-row term))
+           (region (terminal-current-scrolling-region term))
+           (region-start (car region))
+           (region-end (cdr region))
+           (n-pre (cursor-line-num . - . region-start))
+           (n-post (region-end . - . cursor-line-num)))
+      (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))
+      (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n-scrolls))))))
 
 (define (terminal-insert-at-cursor term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-insert-at-cursor ft cell))))
@@ -67,10 +75,24 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-clear-line ft))))
 (define (terminal-forward-chars term [n 1])
   (terminal-mutate term (lambda (ft) (fun-terminal-forward-cells ft n))))
+(define (-terminal-forward-lines term [n 1])
+  (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n))))
 (define (terminal-forward-lines term [n 1])
-  (if (null? (terminal-current-scroll-region term))
-      (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n)))
-      (terminal-scroll-region term n)))
+  (if (null? (terminal-current-scrolling-region term))
+      (-terminal-forward-lines term n)
+      (let* ((forward? (positive? n))
+             (cur (terminal-get-row term))
+             (region (terminal-current-scrolling-region term))
+             (end (if forward? (cdr region)
+                      (car region)))
+             (moved (+ cur n))
+             (beyond (if ((if forward? > <) moved end)
+                         (- moved end)
+                         0))
+             (to-move (- n beyond)))
+        (-terminal-forward-lines term to-move)
+        (terminal-scroll-region term beyond))))
+
 (define (terminal-overwrite term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
 (define (terminal-append-line-at-end term)
@@ -92,6 +114,12 @@
   (for ((i (in-range rows)))
     (terminal-line-break-at-cursor term))
   (terminal-insert-blank term cols))
+
+(define (terminal-set-scrolling-region term start end)
+  (if (and (equal? start 0)
+           (equal? end (sub1 (terminal-current-height term))))
+      (set-terminal-current-scrolling-region! term null)
+      (set-terminal-current-scrolling-region! term (cons start end))))
 
 (define default-fg-color "white")
 (define default-bg-color "black")
@@ -228,7 +256,7 @@
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-handle-character term char)
-  (printf "handling: ~s~n" char)
+  ;(printf "handling: ~s~n" char)
   (define handler (terminal-current-char-handler term))
   (cond
     [(not (null? handler)) (handler term char)]
@@ -362,7 +390,7 @@
       [else
        (let ((end-handler (hash-ref csi-table char (lambda ()
                                                      (lambda (term char params lq?)
-                                                       (printf "ignored CSI terminator: ~a~n" char))))))
+                                                       (printf "ignored CSI terminator: ~a with params: ~a~n" char params))))))
          (end-handler term char (append completed-params (list current-param)) leading-question?))])))
 
 (define new-csi-handler (make-csi-handler '() 0 #f))
@@ -530,7 +558,10 @@
 
    ;; n - status report
    ;; q - keyboard LEDs
-   ;; r - set scrolling region
+   #\r (lambda (term char params lq?)
+         (let ((start (sub1 (car-defaulted params 1)))
+               (end (sub1 (cadr-defaulted params (terminal-current-height term)))))
+           (terminal-set-scrolling-region term start end)))
    ;; s - save cursor location
    ;; u - restore cursor location
    #\` (lambda (term char params lq?)

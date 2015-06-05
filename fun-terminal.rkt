@@ -11,7 +11,7 @@
   (character fg-color bg-color attr-list)
   #:transparent) ; maybe just have a list of attrs, so
   ; the average cell doesn't have as much data...
-(define blank-cell (make-cell #\space "white" "white" '()))
+(define blank-cell (make-cell #\space "white" "black" '()))
 
 ;; lines are a series of cells.  I should have normal mode output keep in one line and wrap it according to terminal size (and re-wrapping on size change)
 
@@ -249,11 +249,11 @@
                            (cons c-line (take after-lines n-after))))
            (new-region (append (list-tail region n-scrolls)
                                (make-list n-scrolls '())))
-           (new-before (append (reverse (take n-before new-region))
+           (new-before (append (reverse (take new-region n-before))
                                (list-tail before-lines n-before)))
-           (new-c-line (list-ref new-region (add1 n-before)))
+           (new-c-line (list-ref new-region n-before))
            (new-after (append (list-tail new-region (add1 n-before))
-                              (list-tail after-lines (n-after)))))
+                              (list-tail after-lines n-after))))
       (values new-before new-c-line new-after)))
   (let* ((forward? (positive? n-scrolls))
          (before-lines (if forward? (fun-terminal-lines-before-cursor term)
