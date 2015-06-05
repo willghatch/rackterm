@@ -4,7 +4,7 @@ Very much a work in progress, started as a project to learn Racket, though I hop
 
 It is not yet really packaged or anything.  To run the xterm, run `racket xterm.rkt`.
 
-It has (24-bit color support)[https://gist.github.com/XVilka/8346728], as well as 256color support and standard 8 color support.  Other styling is, at the time of writing, not supported (bold, underline, blink, etc).
+It has [24-bit color support](https://gist.github.com/XVilka/8346728), as well as 256color support and standard 8 color support.  Other styling is, at the time of writing, not supported (bold, underline, blink, etc).
 
 At this point I seem to be able to run vim and emacs on it fine.
 
