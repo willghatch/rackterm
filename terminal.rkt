@@ -61,6 +61,18 @@
       (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))
       (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n-scrolls))))))
 
+(define (terminal-delete-lines-with-scrolling-region term n-deletions)
+  (let* ((cur (terminal-get-row term))
+         (region (terminal-current-scrolling-region term))
+         (region-end (if (null? region)
+                         (sub1 (terminal-current-height term))
+                         (cdr region)))
+         (cur-to-end (- region-end cur)))
+    (terminal-mutate term (lambda (ft)
+                            (fun-terminal-scroll-region ft 0 cur-to-end n-deletions)))))
+(define (terminal-insert-lines-with-scrolling-region term n-inserts)
+  (terminal-delete-lines-with-scrolling-region term (- n-inserts)))
+
 (define (terminal-insert-at-cursor term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-insert-at-cursor ft cell))))
 (define (terminal-delete-backwards-at-cursor term)
@@ -533,7 +545,11 @@
              ;; 0
              [else (terminal-delete-to-end-of-line term)])))
    ;; L - insert n blank lines
+   #\L (lambda (term char params lq?)
+         (terminal-insert-lines-with-scrolling-region term (car-defaulted params 1)))
    ;; M - delete n lines
+   #\M (lambda (term char params lq?)
+         (terminal-delete-lines-with-scrolling-region term (car-defaulted params 1)))
    ;; P - delete n characters on current line
    ;; X - erase n characters on current line
 
