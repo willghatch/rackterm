@@ -41,6 +41,7 @@
    current-bg-color
    current-cell-attrs
    current-scrolling-region ; (cons start-line, end-line)
+   current-tab-stops ; sorted list of tab stop indices
    title
    )
   #:mutable)
@@ -168,6 +169,7 @@
                    default-bg-color
                    '()
                    null
+                   '()
                    "rackterm"
                    ))
 (define (init-terminal3 redraw-callback command . command-args)
@@ -186,6 +188,7 @@
                  default-bg-color
                  '()
                  null
+                 '()
                  "rackterm"
                  ))
 (define (init-terminal2 redraw-callback command . command-args)
@@ -206,6 +209,7 @@
                    default-bg-color
                    '()
                    null
+                   '()
                    "rackterm"
                    )))
 (define (init-terminal command redraw-callback)
@@ -224,6 +228,7 @@
                    default-bg-color
                    '()
                    null
+                   '()
                    "rackterm"
                    )))
 
@@ -238,6 +243,15 @@
   (set-terminal-current-width! term width)
   (set-terminal-current-height! term height)
   (set-pty-size (terminal-pts-fd term) (new-winsize width height)))
+
+(define (terminal-set-tab-stop term index)
+  (let ((stops (terminal-current-tab-stops term)))
+    (unless (member index stops)
+      (set-terminal-current-tab-stops! term (sort (cons index stops) <)))))
+(define (terminal-remove-tab-stop term index)
+  (set-terminal-current-tab-stops! term (remove index (terminal-current-tab-stops term))))
+(define (terminal-remove-all-tab-stops term)
+  (set-terminal-current-tab-stops! term '()))
 
 (define (send-char-to-terminal-process term char)
   (write-char char (terminal-process-out term))
