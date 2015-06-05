@@ -236,7 +236,7 @@
   (flush-output (terminal-process-out term)))
 
 (define (terminal-get-lines term)
-  (fun-terminal->lines-from-end (terminal-fun-terminal term)))
+  (fun-terminal->lines-from-end (terminal-fun-terminal term) #t))
 
 (define (terminal-make-cell term char)
   (make-cell char

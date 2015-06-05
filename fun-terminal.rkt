@@ -32,8 +32,19 @@
 (define (make-empty-fun-terminal)
   (make-fun-terminal '() '() (make-empty-cursor-line) 0 0))
 
-(define (cursor-line->normal-line line)
-  (foldl cons (cursor-line-cells-after-cursor line) (cursor-line-cells-before-cursor line)))
+(define (cursor-line->normal-line line [style-cursor? #f])
+  (define (style c)
+    (struct-copy cell c
+                 [fg-color (cell-bg-color c)]
+                 [bg-color (cell-fg-color c)]))
+  (let* ((after-orig (cursor-line-cells-after-cursor line))
+         (after-mod (if style-cursor?
+                        (if (null? after-orig)
+                            (list (style blank-cell))
+                            (cons (style (car after-orig))
+                                  (cdr after-orig)))
+                        after-orig)))
+  (foldl cons after-mod (cursor-line-cells-before-cursor line))))
 
 (define (normal-line->cursor-line line [line-index 0])
   (let* ((len (length line))
@@ -225,11 +236,11 @@
   (struct-copy fun-terminal term
                [line-with-cursor (make-empty-cursor-line)]))
 
-(define (fun-terminal->lines-from-end terminal)
+(define (fun-terminal->lines-from-end terminal [style-cursor? #f])
   ;; gives the lines in reverse order, because the last lines will be the ones used first
   (foldl cons
          (fun-terminal-lines-before-cursor terminal)
-         (cons (cursor-line->normal-line (fun-terminal-line-with-cursor terminal))
+         (cons (cursor-line->normal-line (fun-terminal-line-with-cursor terminal) style-cursor?)
                (fun-terminal-lines-after-cursor terminal))))
 
 (define (fun-terminal-get-column term)
