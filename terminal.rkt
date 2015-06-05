@@ -459,52 +459,53 @@
   ;; 24 bit color = CSI-38;2;r;g;bm for fg and 48 instead of 38 for bg
   ;; for 256 color pallete, CSI-38;5;colorm
   (set-terminal-current-char-handler! term null)
-  (define (fg color) (set-terminal-current-fg-color! term color))
-  (define (bg color) (set-terminal-current-bg-color! term color))
+  (define (fg color) (set-terminal-current-fg-color! term color)
+    (color-csi-handler term char (cdr params) lq?))
+  (define (bg color) (set-terminal-current-bg-color! term color)
+    (color-csi-handler term char (cdr params) lq?))
   (if (null? params)
       'done
-      (begin
-        (case (car params)
-          [(0) (begin (fg default-fg-color)
-                      (bg default-bg-color)
-                      (set-terminal-current-cell-attrs! term '()))]
-          [(1) null] ; bold
-          [(2) null]
-          [(4) null]
-          [(5) null]
-          [(7) null]
-          [(10) null]
-          [(11) null]
-          [(12) null]
-          [(21) null]
-          [(22) null]
-          [(24) null]
-          [(25) null]
-          [(27) null]
-          [(30) (fg "black")]
-          [(31) (fg "red")]
-          [(32) (fg "green")]
-          [(33) (fg "brown")]
-          [(34) (fg "blue")]
-          [(35) (fg "magenta")]
-          [(36) (fg "cyan")]
-          [(37) (fg "white")]
-          [(38) (extended-color-handler term char (cdr params) #t)]
-          [(39) null]
-          [(40) (bg "black")]
-          [(41) (bg "red")]
-          [(42) (bg "green")]
-          [(43) (bg "brown")]
-          [(44) (bg "blue")]
-          [(45) (bg "magenta")]
-          [(46) (bg "cyan")]
-          [(47) (bg "white")]
-          [(48) (extended-color-handler term char (cdr params) #f)]
-          [(49) (bg default-bg-color)]
-          [else null])
-        (color-csi-handler term char (cdr params) lq?))))
+      (case (car params)
+        [(0) (begin (fg default-fg-color)
+                    (bg default-bg-color)
+                    (set-terminal-current-cell-attrs! term '()))]
+        ;[(1) null] ; bold
+        ;[(2) null]
+        ;[(4) null]
+        ;[(5) null]
+        ;[(7) null]
+        ;[(10) null]
+        ;[(11) null]
+        ;[(12) null]
+        ;[(21) null]
+        ;[(22) null]
+        ;[(24) null]
+        ;[(25) null]
+        ;[(27) null]
+        [(30) (fg "black")]
+        [(31) (fg "red")]
+        [(32) (fg "green")]
+        [(33) (fg "brown")]
+        [(34) (fg "blue")]
+        [(35) (fg "magenta")]
+        [(36) (fg "cyan")]
+        [(37) (fg "white")]
+        [(38) (extended-color-handler term char (cdr params) #t)]
+        ;[(39) null]
+        [(40) (bg "black")]
+        [(41) (bg "red")]
+        [(42) (bg "green")]
+        [(43) (bg "brown")]
+        [(44) (bg "blue")]
+        [(45) (bg "magenta")]
+        [(46) (bg "cyan")]
+        [(47) (bg "white")]
+        [(48) (extended-color-handler term char (cdr params) #f)]
+        [(49) (bg default-bg-color)]
+        [else (color-csi-handler term char (cdr params) lq?)])))
 
 (define (extended-color-handler term char params fg?)
+  (printf "extended color handling, params: ~a~n" params)
   (define setc (if fg?
                   set-terminal-current-fg-color!
                   set-terminal-current-bg-color!))
