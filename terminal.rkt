@@ -75,6 +75,11 @@
 
 (define (terminal-insert-at-cursor term cell)
   (terminal-mutate term (lambda (ft) (fun-terminal-insert-at-cursor ft cell))))
+(define (terminal-insert-after-cursor term cell)
+  (terminal-insert-at-cursor term cell)
+  (terminal-forward-chars term -1))
+(define (terminal-delete-forward-at-cursor term n)
+  (terminal-mutate term (lambda (ft) (fun-terminal-delete-forward-at-cursor ft n))))
 (define (terminal-delete-backwards-at-cursor term)
   (terminal-mutate term (lambda (ft) (fun-terminal-delete-backwards-at-cursor ft))))
 (define (terminal-clear-from-start-of-line-to-cursor term)
@@ -115,9 +120,12 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-delete-lines-after-cursor ft)))
   (for ((i (in-range n-lines)))
     (terminal-append-line-at-end term)))
-(define (terminal-insert-blank term [n 1])
-  (for ((i (in-range n)))
-    (terminal-insert-at-cursor term (terminal-make-cell term #\space))))
+(define (terminal-insert-blank term [n 1] [after-cursor? #f])
+  (let ((insert (if after-cursor?
+                    terminal-insert-after-cursor
+                    terminal-insert-at-cursor)))
+    (for ((i (in-range n)))
+      (insert term (terminal-make-cell term #\space)))))
 (define (terminal-clear-from-start-to-cursor term)
   (define rows (terminal-get-row term))
   (define cols (terminal-get-column term))
@@ -502,8 +510,7 @@
   (hash
    #\@ (lambda (term char params lq?)
          (let ((n (car-defaulted params 1)))
-           (terminal-insert-blank term n)
-           (terminal-forward-chars (- n))))
+           (terminal-insert-blank term n #t)))
 
    #\A (lambda (term char params lq?)
          (terminal-forward-lines term (- (car-defaulted params 1))))
@@ -550,8 +557,14 @@
    ;; M - delete n lines
    #\M (lambda (term char params lq?)
          (terminal-delete-lines-with-scrolling-region term (car-defaulted params 1)))
-   ;; P - delete n characters on current line
-   ;; X - erase n characters on current line
+   ;; P - delete n characters on current line -- meaning characters shift left
+   #\P (lambda (term char params lq?)
+         (terminal-delete-forward-at-cursor term (car-defaulted params 1)))
+   ;; X - erase n characters on current line -- meaning characters are replaced with spaces
+   #\X (lambda (term char params lq?)
+         (let ((n (car-defaulted params)))
+           (terminal-delete-forward-at-cursor term n)
+           (terminal-insert-blank term n)))
 
    ;; Half of these are duplicates. Stupid.
    #\a (lambda (term char params lq?)

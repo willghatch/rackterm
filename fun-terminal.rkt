@@ -57,11 +57,13 @@
          (beg (list-tail (reverse extended-line) (- new-len line-index))))
     (make-cursor-line beg end line-index)))
 
-(define (cursor-line-delete-cell-forward line)
-  (if (null? (cursor-line-cells-after-cursor line))
-      line
-      (struct-copy cursor-line line
-                   [cells-after-cursor (cdr (cursor-line-cells-after-cursor line))])))
+(define (cursor-line-delete-cell-forward line [n 1])
+  (let* ((old-after (cursor-line-cells-after-cursor line))
+         (new-after (if ((length old-after) . <= . n)
+                        '()
+                        (list-tail old-after n))))
+    (struct-copy cursor-line line
+                 [cells-after-cursor new-after])))
 
 (define (cursor-line-delete-cell-backward line)
   (if (equal? (cursor-line-length-cells-before-cursor line) 0)
@@ -200,8 +202,8 @@
 
 (define (fun-terminal-delete-backwards-at-cursor terminal)
   (fun-terminal-edit-cursor-line terminal cursor-line-delete-cell-backward))
-(define (fun-terminal-delete-forward-at-cursor terminal)
-  (fun-terminal-edit-cursor-line terminal cursor-line-delete-cell-forward))
+(define (fun-terminal-delete-forward-at-cursor terminal [n 1])
+  (fun-terminal-edit-cursor-line terminal cursor-line-delete-cell-forward n))
 (define (fun-terminal-overwrite terminal cell)
   (fun-terminal-edit-cursor-line terminal cursor-line-overwrite cell))
 
