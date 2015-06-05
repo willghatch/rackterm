@@ -84,7 +84,6 @@
                                                       terminal))))
 (define (terminal-scroll-region term n-scrolls)
   (unless (equal? n-scrolls 0)
-    (printf "scrolling... ~a lines~n" n-scrolls)
     (let* ((cursor-line-num (terminal-get-row term))
            (region (terminal-current-scrolling-region term))
            (region-start (car region))
