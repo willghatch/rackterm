@@ -181,7 +181,7 @@
 (define default-bg-color "black")
 
 (define (init-terminal-with-shell-trampoline redraw-callback command . command-args)
-  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
   (define-values (subproc sub-in sub-out sub-err)
     (apply subprocess (append (list s-out s-in 'stdout
                                     "/usr/bin/racket" "-l" "rackterm/shell-trampoline"
@@ -194,7 +194,6 @@
 
 
 (define (terminal-set-size term width height)
-  (printf "setting terminal size: ~a ~a~n" width height)
   (define n-rows (fun-terminal-get-num-rows (terminal-fun-terminal term)))
   (define row-diff (- height n-rows))
   (when (> row-diff 0)
@@ -491,7 +490,6 @@
         [else (color-csi-handler term char (cdr params) lq?)])))
 
 (define (extended-color-handler term char params fg?)
-  (printf "extended color handling, params: ~a~n" params)
   (define setc (if fg?
                   set-terminal-current-fg-color!
                   set-terminal-current-bg-color!))
