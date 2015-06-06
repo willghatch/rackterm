@@ -29,12 +29,15 @@
     (define last-height 0)
 
     (define (resize-maybe width height)
-      (when (or (not (equal? width last-width))
-                (not (equal? height last-height)))
-        (begin
-          (set! last-width width)
-          (set! last-height height)
-          (terminal-set-size terminal width height))))
+      (if (or (not (equal? width last-width))
+              (not (equal? height last-height)))
+          (begin
+            (set! last-width width)
+            (set! last-height height)
+            (terminal-set-size terminal width height)
+            #t)
+          #f))
+
     (resize-maybe 80 24) ; call at startup so it initializes well
 
     (define (get-text-width-height)
@@ -81,35 +84,39 @@
             (print-terminal-cell cell))))
       (define (print-terminal-cell cell)
         (define s (cell-style cell))
+        (send dc set-font (send the-font-list find-or-create-font
+                                12
+                                ;"DejaVu Sans Mono"
+                                'modern ; default, decorative, roman, script, swiss, modern, symbol, system
+                                (if (style-italic s) 'italic 'normal) ; normal, italic, slant
+                                (if (style-bold s) 'bold 'normal) ; normal, bold, light
+                                (style-underline s) ; underline?
+                                ))
         (send dc set-text-background (style->color% s #f))
         (send dc set-text-foreground (style->color% s #t))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
+      (define (repaint-all)
+        ;; clear to start painting again...
+        (send dc set-background "black")
+        (send dc clear)
 
-      (resize-maybe xterm-width xterm-height)
+        (send dc set-text-mode 'solid) ; use the background color...
+        (send dc set-text-background "black")
+        (send dc set-text-foreground "white")
 
-      ;; clear to start painting again...
-      (send dc set-background "black")
-      (send dc clear)
-      (send dc set-font (send the-font-list find-or-create-font
-                              12
-                              ;"DejaVu Sans Mono"
-                              'modern ; default, decorative, roman, script, swiss, modern, symbol, system
-                              'normal ; normal, italic, slant
-                              'normal ; normal, bold, light
-                              #f ; underline?
-                              ))
+        (for [(line (terminal-get-lines terminal))
+              #:break (< cur-y 0)]
+          (print-terminal-line line)))
 
-      (send dc set-text-mode 'solid) ; use the background color...
-      (send dc set-text-background "black")
-      (send dc set-text-foreground "white")
+      (define resized? (resize-maybe xterm-width xterm-height))
+      (if resized?
+          (repaint-all)
+          (repaint-all))
 
-      (for [(line (terminal-get-lines terminal))
-            #:break (< cur-y 0)]
-        (print-terminal-line line))
+      (send dc flush)) ;; end on-paint
 
-      (send dc flush))
 
     (define/override (on-char event)
       (let ((key (send event get-key-code)))

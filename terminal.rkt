@@ -432,37 +432,49 @@
   ;; 24 bit color = CSI-38;2;r;g;bm for fg and 48 instead of 38 for bg
   ;; for 256 color pallete, CSI-38;5;colorm
   (set-terminal-current-char-handler! term null)
+  (define old-style (terminal-current-cell-style term))
+  (define (set-style-and-handle style)
+    (set-terminal-current-cell-style! term style)
+    (color-csi-handler term char (cdr params) lq?))
   (define (fg color)
-    (set-terminal-current-cell-style! term (struct-copy
-                                            style
-                                            (terminal-current-cell-style term)
-                                            [fg-color color]))
-    (color-csi-handler term char (cdr params) lq?))
+    (set-style-and-handle (struct-copy
+                           style
+                           (terminal-current-cell-style term)
+                           [fg-color color])))
   (define (bg color)
-    (set-terminal-current-cell-style! term (struct-copy
-                                            style
-                                            (terminal-current-cell-style term)
-                                            [bg-color color]))
-    (color-csi-handler term char (cdr params) lq?))
+    (set-style-and-handle (struct-copy
+                           style
+                           (terminal-current-cell-style term)
+                           [bg-color color])))
   (if (null? params)
       'done
       (case (car params)
         [(0) (set-terminal-current-cell-style! term default-style)]
-        [(1) (set-terminal-current-cell-style!
-              term (struct-copy style (terminal-current-cell-style term)
-                                [bold #t]))]
+        [(1) (set-style-and-handle (struct-copy style old-style
+                                                [bold #t]))]
         ;[(2) null]
-        ;[(4) null]
-        ;[(5) null]
-        ;[(7) null]
+        [(3) (set-style-and-handle (struct-copy style old-style
+                                                [italic #t]))]
+        [(4) (set-style-and-handle (struct-copy style old-style
+                                                [underline #t]))]
+        [(5) (set-style-and-handle (struct-copy style old-style
+                                                [blink #t]))]
+        [(7) (set-style-and-handle (struct-copy style old-style
+                                                [reverse-video #t]))]
         ;[(10) null]
         ;[(11) null]
         ;[(12) null]
         ;[(21) null]
-        ;[(22) null]
-        ;[(24) null]
-        ;[(25) null]
-        ;[(27) null]
+        [(22) (set-style-and-handle (struct-copy style old-style
+                                                [bold #f]))]
+        [(23) (set-style-and-handle (struct-copy style old-style
+                                                [italic #f]))]
+        [(24) (set-style-and-handle (struct-copy style old-style
+                                                [underline #f]))]
+        [(25) (set-style-and-handle (struct-copy style old-style
+                                                [blink #f]))]
+        [(27) (set-style-and-handle (struct-copy style old-style
+                                                [reverse-video #f]))]
         [(30) (fg 'black)]
         [(31) (fg 'red)]
         [(32) (fg 'green)]
