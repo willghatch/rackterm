@@ -3,9 +3,11 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
-(define my-terminal (init-terminal2 (lambda ()
+(define my-terminal (init-terminal-with-setsid-command (lambda ()
                                       (send the-canvas refresh))
-                                    "/bin/bash" "-i"))
+                                    (or (getenv "SHELL")
+                                        "/bin/sh")
+                                    "-i"))
 ;; TODO - move this into the initialization function...
 (terminal-set-default-tab-stops my-terminal)
 

@@ -99,8 +99,8 @@
                           -> (error "execvp failed")))
 
 (define-libc setsid (_fun -> (ret : _int)
-                          ;-> (when (equal? ret -1) (error "setsid failed"))))
-                          ))
+                          -> (when (equal? ret -1) (error "setsid failed"))))
+
 (define-libc getsid (_fun (pid : _int) -> (ret : _int)))
 (define-libc getpgid (_fun (pid : _int) -> (ret : _int)))
 

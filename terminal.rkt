@@ -183,28 +183,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; These are experiments on how I should best open the subprocess...
 
-(define (init-terminal4 redraw-callback command . command-args)
+(define (init-terminal-with-set-tty redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (define-values (subproc sub-in sub-out sub-err)
     (apply subprocess (append (list s-out s-in 'stdout
-                                    "/usr/bin/racket" "/home/wgh/mk/rackterm/set-tty.rkt"
-                                    (number->string slave-fd)
+                                    "/usr/bin/racket" "set-tty.rkt"
                                     command)
                               command-args)))
   (-init-terminal m-in m-out master-fd slave-fd redraw-callback))
-(define (init-terminal3 redraw-callback command . command-args)
-  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
-  (apply subproc-with-new-controlling-tty (append (list slave-fd command) command-args))
-  (-init-terminal m-in m-out master-fd slave-fd redraw-callback))
-(define (init-terminal2 redraw-callback command . command-args)
+(define (init-terminal-with-setsid-command redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (parameterize ([subprocess-group-enabled #t])
     (define-values (subproc sub-in sub-out sub-err)
       (apply subprocess (append (list s-out s-in 'stdout "/usr/bin/setsid") (cons command command-args))))
-    (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
-(define (init-terminal command redraw-callback)
-  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
-  (let ((proc (process/ports s-out s-in 'stdout command)))
     (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
 
 (define (terminal-set-size term width height)
