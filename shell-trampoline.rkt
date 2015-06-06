@@ -1,7 +1,8 @@
 #lang racket/base
 
-;; this is simply a wrapper to execute some other program... one of my experiments
-;; to properly start the subprocess...
+;; This is a wrapper to launch another program with proper settings to have job
+;; control and let everything work properly in a terminal.  My idea was to have
+;; this in racket so no code in other languages would be needed.
 
 (require "pty.rkt")
 
@@ -17,5 +18,5 @@
 ;; So far it's the only program that runs differently
 (set-controlling-tty (scheme_get_port_file_descriptor (current-input-port)))
 
-(apply rexecvp args)
+(apply execvp args)
 

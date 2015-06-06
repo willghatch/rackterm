@@ -1,19 +1,18 @@
 #lang racket/base
 
+;; This is a functional data structure to hold the cells of the terminal emulator.
+
 (require racket/list)
 
 (provide
  (all-defined-out)
  )
 
-;; Cells - each cell has RGBA color, background, a unicode character, attributes such as underline, blink, italic... similar to emacs face properties.  Maybe font?  Cell size?  Images could be large cells?
 (define-struct cell
   (character fg-color bg-color attr-list)
   #:transparent) ; maybe just have a list of attrs, so
   ; the average cell doesn't have as much data...
 (define blank-cell (make-cell #\space "white" "black" '()))
-
-;; lines are a series of cells.  I should have normal mode output keep in one line and wrap it according to terminal size (and re-wrapping on size change)
 
 (define-struct cursor-line
   (cells-before-cursor ; reversed list

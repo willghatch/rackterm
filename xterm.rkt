@@ -1,4 +1,7 @@
 #lang racket/base
+
+;; This is to be executed, running a GUI terminal emulator
+
 (require racket/class)
 (require racket/gui/base)
 (require "terminal.rkt")

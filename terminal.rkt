@@ -1,5 +1,4 @@
 #lang racket/base
-(require racket/system) ; for process/ports
 (require racket/draw)
 (require racket/list)
 (require racket/stream)
@@ -7,6 +6,9 @@
 (require "fun-terminal.rkt")
 (require "256color.rkt")
 
+;; This is the main file for the terminal library.  It is to be wrapped by a program
+;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
+;; terminal!
 
 (provide (all-defined-out)
          (struct-out cell))
@@ -14,14 +16,7 @@
 
 ;; TODO:
 ;; - the 'who' command doesn't show my racket xterms... Also of note: it doesn't show for
-;;   st terminals either, which is where I looked at how to do the pty stuff.
-;; - /bin/sh enters a space once it reaches the last character of terminal width, then a return character.
-;;   I believe the default behaviour would be to enter the space on the next line down, then
-;;   the carriage return would go to the start of the line...
-;;   I can either split the line or do a bunch of handling to make carriage returns only go back
-;;   to the line start modulo official line width.
-;;   There is a switch to toggle auto-wrapping on end of line or not in the "h" CSI toggles.
-;; - I need to report my actual terminal size...
+;;   st terminals or finalterm either, so maybe it doesn't matter
 
 ;; Some notes:
 ;; - The spec uses 1 based cell addressing -- IE 1,1 is the origin at the top left corner.
@@ -49,25 +44,37 @@
    )
   #:mutable)
 
-(define (-init-terminal m-in m-out master-fd slave-fd redraw-callback)
-  (make-terminal the-empty-fun-terminal
-                 the-empty-fun-terminal
-                 #f
-                 m-in
-                 m-out
-                 master-fd
-                 slave-fd
-                 80
-                 24
-                 redraw-callback
-                 null
-                 default-fg-color
-                 default-bg-color
-                 '()
-                 null
-                 '()
-                 "rackterm"
-                 ))
+(define (init-terminal-with-shell-trampoline redraw-callback command . command-args)
+  (define (-init-terminal m-in m-out master-fd slave-fd redraw-callback)
+    (make-terminal the-empty-fun-terminal
+                   the-empty-fun-terminal
+                   #f
+                   m-in
+                   m-out
+                   master-fd
+                   slave-fd
+                   80
+                   24
+                   redraw-callback
+                   null
+                   default-fg-color
+                   default-bg-color
+                   '()
+                   null
+                   '()
+                   "rackterm"
+                   ))
+  (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
+  (define-values (subproc sub-in sub-out sub-err)
+    (apply subprocess (append (list s-out s-in 'stdout
+                                    "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline"
+                                    command)
+                              command-args)))
+  (let ((new-term
+         (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
+    (terminal-set-default-tab-stops new-term)
+    new-term))
+
 
 (define (terminal-fun-terminal term)
   (if (terminal-current-alt-screen-state term)
@@ -179,18 +186,6 @@
 
 (define default-fg-color "white")
 (define default-bg-color "black")
-
-(define (init-terminal-with-shell-trampoline redraw-callback command . command-args)
-  (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
-  (define-values (subproc sub-in sub-out sub-err)
-    (apply subprocess (append (list s-out s-in 'stdout
-                                    "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline"
-                                    command)
-                              command-args)))
-  (let ((new-term
-         (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
-    (terminal-set-default-tab-stops new-term)
-    new-term))
 
 
 (define (terminal-set-size term width height)
@@ -378,6 +373,10 @@
 (define ignore-next-char (make-ignore-next-n-characters-handler 1))
 
 (define (make-csi-handler completed-params current-param leading-question?)
+  ;; CSI sequences start with 'ESC [', then possibly a question mark (which seems
+  ;; to only matter for setting/resetting modes with h/l, in which case it means
+  ;; "private mode"), then decimal number arguments separated by semicolons,
+  ;; until a final character that determines the function.
   (lambda (term char)
     (set-terminal-current-char-handler! term null)
     (case char
@@ -408,10 +407,10 @@
 (define new-csi-handler (make-csi-handler '() 0 #f))
 
 (define (car-defaulted l default)
-  (let ((orig (car l)))
-    (if (equal? 0 orig)
-        default
-        orig)))
+  (if (or (null? l)
+          (equal? (car l) 0))
+      default
+      (car l)))
 (define (cadr-defaulted l default)
   (cond
     [(< (length l) 2) default]
@@ -506,44 +505,44 @@
          null
          (begin
            (setc term (lookup-256color (second params)))
-           (color-csi-handler term char (list-tail params 2) #f)))] ; TODO - add 256 color handling
+           (color-csi-handler term char (list-tail params 2) #f)))]
     [else (color-csi-handler term char (cdr params) #f)]))
 
 (define csi-table
-  ;; a quick look at what codes are skipped with a trivial run of vim
-  ;; H c h l
-  ;; emacs
-  ;; h c d H
-  ;; less
-  ;; H
-  ;; H is set row,col
-  ;; c is "tell me what kind of terminal you are"
-  ;; h/l are set/reset various modes
   (hash
+   ;; insert blanks
    #\@ (lambda (term char params lq?)
          (let ((n (car-defaulted params 1)))
            (terminal-insert-blank term n #t)))
 
+   ;; forward lines
    #\A (lambda (term char params lq?)
          (terminal-forward-lines term (- (car-defaulted params 1))))
    #\B (lambda (term char params lq?)
          (terminal-forward-lines term (car-defaulted params 1)))
+
+   ;; forward chars
    #\C (lambda (term char params lq?)
          (terminal-forward-chars term (car-defaulted params 1)))
    #\D (lambda (term char params lq?)
          (terminal-forward-chars term (- (car-defaulted params 1))))
+
+   ;; forward lines to column 0
    #\E (lambda (term char params lq?)
          (terminal-go-to-column term 0)
          (terminal-forward-lines term (car-defaulted params 1)))
    #\F (lambda (term char params lq?)
          (terminal-go-to-column term 0)
          (terminal-forward-lines term (- (car-defaulted params 1))))
+
+   ;; go to address directly
    #\G (lambda (term char params lq?)
          (terminal-go-to-column term (sub1 (car-defaulted params 1))))
    #\H (lambda (term char params lq?)
          (terminal-go-to-row term (sub1 (car-defaulted params 1)))
          (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
 
+   ;; clear screen
    #\J (lambda (term char params lq?)
          (let ((n (car params)))
            (case n
@@ -556,6 +555,7 @@
              ;; 0
              [else (terminal-clear-from-cursor-to-end term)])))
 
+   ;; clear line
    #\K (lambda (term char params lq?)
          (let ((n (car params)))
            (case n
@@ -563,6 +563,7 @@
              [(1) (terminal-clear-from-start-of-line-to-cursor)]
              ;; 0
              [else (terminal-delete-to-end-of-line term)])))
+
    ;; L - insert n blank lines
    #\L (lambda (term char params lq?)
          (terminal-insert-lines-with-scrolling-region term (car-defaulted params 1)))
@@ -579,10 +580,12 @@
            (terminal-insert-blank term n)))
 
    ;; Half of these are duplicates. Stupid.
+   ;; Forward chars
    #\a (lambda (term char params lq?)
          (terminal-forward-chars term (car-defaulted params 1)))
    ;; b... I don't see a spec for it
    ;; c -- some sort of terminal identification...
+
    #\d (lambda (term char params lq?)
          (terminal-go-to-row term (sub1 (car-defaulted params 1))))
    #\e (lambda (term char params lq?)
@@ -590,6 +593,7 @@
    #\f (lambda (term char params lq?)
          (terminal-go-to-row term (sub1 (car-defaulted params 1)))
          (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
+
    ;; g - 0 - clear tab stop at current position
    ;;     3 - delete all tab stops
    #\g (lambda (term char params lq?)
@@ -597,21 +601,28 @@
            (if (equal? arg 3)
                (terminal-remove-all-tab-stops term)
                (terminal-remove-tab-stop term))))
+
    ;; h - set mode
    ;; l - reset mode
    #\h handle-set-mode
    #\l handle-set-mode
 
+
    #\m color-csi-handler
 
    ;; n - status report
    ;; q - keyboard LEDs
+
+   ;; set scrolling region
    #\r (lambda (term char params lq?)
          (let ((start (sub1 (car-defaulted params 1)))
                (end (sub1 (cadr-defaulted params (terminal-current-height term)))))
            (terminal-set-scrolling-region term start end)))
+
    ;; s - save cursor location
    ;; u - restore cursor location
+
+
    #\` (lambda (term char params lq?)
          (terminal-go-to-column term (sub1 (car-defaulted params 1))))
    ))

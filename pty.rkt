@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; For handling all the system calls to unix to set up a PTY
+;; Library for handling all the system calls to unix to set up a PTY
 
 (require ffi/unsafe
          ffi/unsafe/define)
@@ -97,7 +97,7 @@
                                   ret)))
 
 
-(define (rexecvp command . args)
+(define (execvp command . args)
   (define-libc execvp (_fun (file : _string) (argv : (_array/list _string argv-array-len))
                             -> (ret : _int)
                           -> (error "execvp failed")))
