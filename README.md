@@ -8,8 +8,4 @@ It has [24-bit color support](https://gist.github.com/XVilka/8346728), as well a
 
 At this point I seem to be able to run vim and emacs on it fine.
 
-Issues
-------
-
-I haven't gotten window resizing to work yet -- I have issues setting up the child shell process with the right ioctl settings.
-
+Right now it depends on the setsid(1) command to spawn child processes that can have job control, and depends on some hard-coded constants that are likely only valid for Linux, so it's not (presently) portable.
