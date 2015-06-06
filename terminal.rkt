@@ -180,9 +180,6 @@
 (define default-fg-color "white")
 (define default-bg-color "black")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; These are experiments on how I should best open the subprocess...
-
 (define (init-terminal-with-shell-trampoline redraw-callback command . command-args)
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
   (define-values (subproc sub-in sub-out sub-err)
@@ -190,13 +187,11 @@
                                     "/usr/bin/racket" "-l" "rackterm/shell-trampoline"
                                     command)
                               command-args)))
-  (-init-terminal m-in m-out master-fd slave-fd redraw-callback))
-(define (init-terminal-with-setsid-command redraw-callback command . command-args)
-  (define-values (m-in m-out s-in s-out master-fd slave-fd) (my-openpty))
-  (parameterize ([subprocess-group-enabled #t])
-    (define-values (subproc sub-in sub-out sub-err)
-      (apply subprocess (append (list s-out s-in 'stdout "/usr/bin/setsid") (cons command command-args))))
-    (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
+  (let ((new-term
+         (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
+    (terminal-set-default-tab-stops new-term)
+    new-term))
+
 
 (define (terminal-set-size term width height)
   (printf "setting terminal size: ~a ~a~n" width height)

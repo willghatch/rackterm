@@ -8,8 +8,6 @@
                                     (or (getenv "SHELL")
                                         "/bin/sh")
                                     "-i"))
-;; TODO - move this into the initialization function...
-(terminal-set-default-tab-stops my-terminal)
 
 (define frame (new frame%
                    [label "racket xterm"]
