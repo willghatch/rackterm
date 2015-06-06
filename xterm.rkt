@@ -3,7 +3,7 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
-(define my-terminal (init-terminal-with-setsid-command (lambda ()
+(define my-terminal (init-terminal-with-shell-trampoline (lambda ()
                                       (send the-canvas refresh))
                                     (or (getenv "SHELL")
                                         "/bin/sh")
