@@ -63,8 +63,8 @@
 
 
 ;; How can I get these from the .h file automatically, so this won't just break?
-(define TIOCSWINSZ #x5413) ; set window size
-(define TIOCGWINSZ #x5414) ; get window size
+(define TIOCSWINSZ #x5414) ; set window size
+(define TIOCGWINSZ #x5413) ; get window size
 (define TIOCSCTTY #x540E) ; set controlling terminal
 (define TIOCNOTTY #x5422) ; disown the controlling terminal
 

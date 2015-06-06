@@ -11,8 +11,8 @@
 
 (define frame (new frame%
                    [label "racket xterm"]
-                   [width 100]
-                   [height 100]))
+                   [width 800]
+                   [height 800]))
 
 (send frame show #t)
 
@@ -83,7 +83,7 @@
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
 
-      ;(resize-maybe xterm-width xterm-height)
+      (resize-maybe xterm-width xterm-height)
 
       ;; clear to start painting again...
       (send dc set-background "black")
