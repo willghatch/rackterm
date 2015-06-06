@@ -2,17 +2,13 @@
 
 ;; This is a functional data structure to hold the cells of the terminal emulator.
 
+(require "cell.rkt")
 (require racket/list)
 
 (provide
  (all-defined-out)
  )
 
-(define-struct cell
-  (character fg-color bg-color attr-list)
-  #:transparent) ; maybe just have a list of attrs, so
-  ; the average cell doesn't have as much data...
-(define blank-cell (make-cell #\space "white" "black" '()))
 
 (define-struct cursor-line
   (cells-before-cursor ; reversed list
@@ -32,18 +28,19 @@
   (make-fun-terminal '() '() the-empty-cursor-line 0 0))
 
 (define (cursor-line->normal-line line [style-cursor? #f])
-  (define (style c)
-    (struct-copy cell c
-                 [fg-color (cell-bg-color c)]
-                 [bg-color (cell-fg-color c)]))
+  (define (cursor-style c)
+    (let ((s (cell-style c)))
+      (make-cell (cell-character c)
+                 (struct-copy style s
+                              [reverse-video (not (style-reverse-video s))]))))
   (let* ((after-orig (cursor-line-cells-after-cursor line))
          (after-mod (if style-cursor?
                         (if (null? after-orig)
-                            (list (style blank-cell))
-                            (cons (style (car after-orig))
+                            (list (cursor-style blank-cell))
+                            (cons (cursor-style (car after-orig))
                                   (cdr after-orig)))
                         after-orig)))
-  (foldl cons after-mod (cursor-line-cells-before-cursor line))))
+    (foldl cons after-mod (cursor-line-cells-before-cursor line))))
 
 (define (normal-line->cursor-line line [line-index 0])
   (let* ((len (length line))

@@ -4,13 +4,14 @@
 (require racket/stream)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
-(require "256color.rkt")
+(require "cell.rkt")
 
 ;; This is the main file for the terminal library.  It is to be wrapped by a program
 ;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
 ;; terminal!
 
 (provide (all-defined-out)
+         (all-from-out "cell.rkt")
          (struct-out cell))
 
 
@@ -30,14 +31,11 @@
    process-in
    process-out
    ptm-fd
-   pts-fd
    current-width
    current-height
    redraw-callback
    current-char-handler
-   current-fg-color
-   current-bg-color
-   current-cell-attrs
+   current-cell-style
    current-scrolling-region ; (cons start-line, end-line)
    current-tab-stops ; sorted list of tab stop indices
    title
@@ -52,14 +50,11 @@
                    m-in
                    m-out
                    master-fd
-                   slave-fd
                    80
                    24
                    redraw-callback
                    null
-                   default-fg-color
-                   default-bg-color
-                   '()
+                   default-style
                    null
                    '()
                    "rackterm"
@@ -184,9 +179,6 @@
       (set-terminal-current-scrolling-region! term null)
       (set-terminal-current-scrolling-region! term (cons start end))))
 
-(define default-fg-color "white")
-(define default-bg-color "black")
-
 
 (define (terminal-set-size term width height)
   (define n-rows (fun-terminal-get-num-rows (terminal-fun-terminal term)))
@@ -197,7 +189,7 @@
 
   (set-terminal-current-width! term width)
   (set-terminal-current-height! term height)
-  (set-pty-size (terminal-pts-fd term) (new-winsize width height)))
+  (set-pty-size (terminal-ptm-fd term) (new-winsize width height)))
 
 (define (terminal-set-tab-stop term)
   (let ((stops (terminal-current-tab-stops term))
@@ -233,10 +225,7 @@
   (fun-terminal->lines-from-end (terminal-fun-terminal term) #t))
 
 (define (terminal-make-cell term char)
-  (make-cell char
-             (terminal-current-fg-color term)
-             (terminal-current-bg-color term)
-             (terminal-current-cell-attrs term)))
+  (make-cell char (terminal-current-cell-style term)))
 
 (define (terminal-insert-character term char)
   (terminal-insert-at-cursor term (terminal-make-cell term char)))
@@ -443,17 +432,25 @@
   ;; 24 bit color = CSI-38;2;r;g;bm for fg and 48 instead of 38 for bg
   ;; for 256 color pallete, CSI-38;5;colorm
   (set-terminal-current-char-handler! term null)
-  (define (fg color) (set-terminal-current-fg-color! term color)
+  (define (fg color)
+    (set-terminal-current-cell-style! term (struct-copy
+                                            style
+                                            (terminal-current-cell-style term)
+                                            [fg-color color]))
     (color-csi-handler term char (cdr params) lq?))
-  (define (bg color) (set-terminal-current-bg-color! term color)
+  (define (bg color)
+    (set-terminal-current-cell-style! term (struct-copy
+                                            style
+                                            (terminal-current-cell-style term)
+                                            [bg-color color]))
     (color-csi-handler term char (cdr params) lq?))
   (if (null? params)
       'done
       (case (car params)
-        [(0) (begin (fg default-fg-color)
-                    (bg default-bg-color)
-                    (set-terminal-current-cell-attrs! term '()))]
-        ;[(1) null] ; bold
+        [(0) (set-terminal-current-cell-style! term default-style)]
+        [(1) (set-terminal-current-cell-style!
+              term (struct-copy style (terminal-current-cell-style term)
+                                [bold #t]))]
         ;[(2) null]
         ;[(4) null]
         ;[(5) null]
@@ -466,45 +463,53 @@
         ;[(24) null]
         ;[(25) null]
         ;[(27) null]
-        [(30) (fg "black")]
-        [(31) (fg "red")]
-        [(32) (fg "green")]
-        [(33) (fg "brown")]
-        [(34) (fg "blue")]
-        [(35) (fg "magenta")]
-        [(36) (fg "cyan")]
-        [(37) (fg "white")]
+        [(30) (fg 'black)]
+        [(31) (fg 'red)]
+        [(32) (fg 'green)]
+        [(33) (fg 'brown)]
+        [(34) (fg 'blue)]
+        [(35) (fg 'magenta)]
+        [(36) (fg 'cyan)]
+        [(37) (fg 'white)]
         [(38) (extended-color-handler term char (cdr params) #t)]
-        ;[(39) null]
-        [(40) (bg "black")]
-        [(41) (bg "red")]
-        [(42) (bg "green")]
-        [(43) (bg "brown")]
-        [(44) (bg "blue")]
-        [(45) (bg "magenta")]
-        [(46) (bg "cyan")]
-        [(47) (bg "white")]
+        [(39) (fg 'default-fg)]
+        [(40) (bg 'black)]
+        [(41) (bg 'red)]
+        [(42) (bg 'green)]
+        [(43) (bg 'brown)]
+        [(44) (bg 'blue)]
+        [(45) (bg 'magenta)]
+        [(46) (bg 'cyan)]
+        [(47) (bg 'white)]
         [(48) (extended-color-handler term char (cdr params) #f)]
-        [(49) (bg default-bg-color)]
+        [(49) (bg 'default-bg)]
         [else (color-csi-handler term char (cdr params) lq?)])))
 
 (define (extended-color-handler term char params fg?)
-  (define setc (if fg?
-                  set-terminal-current-fg-color!
-                  set-terminal-current-bg-color!))
+  (define (bg color)
+    (set-terminal-current-cell-style!
+     term
+     (struct-copy style (terminal-current-cell-style term)
+                  [bg-color color])))
+  (define (fg color)
+    (set-terminal-current-cell-style!
+     term
+     (struct-copy style (terminal-current-cell-style term)
+                  [fg-color color])))
+  (define setc (if fg? fg bg))
   (cond
     [(null? params) 'done]
     [(equal? (car params) 2)
      (if (< (length params) 4)
          null
          (begin
-           (setc term (make-color (second params) (third params) (fourth params)))
+           (setc (make-color (second params) (third params) (fourth params)))
            (color-csi-handler term char (list-tail params 4) #f)))]
     [(equal? (car params) 5)
      (if (< (length params) 2)
          null
          (begin
-           (setc term (lookup-256color (second params)))
+           (setc (second params))
            (color-csi-handler term char (list-tail params 2) #f)))]
     [else (color-csi-handler term char (cdr params) #f)]))
 

@@ -42,7 +42,7 @@
       (values width height))
 
     (define/public (get-xterm-size)
-      (define cell-size (send this get-cell-size (cell #\a "white" "black" '())))
+      (define cell-size (send this get-cell-size (make-cell #\@ default-style)))
       (define-values (x-size y-size) (send (send this get-dc) get-size))
       (define (trunc num) (inexact->exact (truncate num)))
       (values (trunc (/ x-size (car cell-size))) (trunc (/ y-size (cadr cell-size)))))
@@ -80,8 +80,9 @@
           (for [(cell line)]
             (print-terminal-cell cell))))
       (define (print-terminal-cell cell)
-        (send dc set-text-background (cell-bg-color cell))
-        (send dc set-text-foreground (cell-fg-color cell))
+        (define s (cell-style cell))
+        (send dc set-text-background (style->color% s #f))
+        (send dc set-text-foreground (style->color% s #t))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
         (set! cur-x (+ cur-x (car (get-cell-size cell)))))
 
