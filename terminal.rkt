@@ -184,7 +184,7 @@
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
   (define-values (subproc sub-in sub-out sub-err)
     (apply subprocess (append (list s-out s-in 'stdout
-                                    "/usr/bin/racket" "-l" "rackterm/shell-trampoline"
+                                    "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline"
                                     command)
                               command-args)))
   (let ((new-term
