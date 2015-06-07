@@ -6,6 +6,12 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
+;;; TODO:
+;;; - clean this crap up
+;;; - add customization to set the 16 color palette map, input mapping
+;;; - do key input mapping (arrow keys, etc)
+;;; - do cursor better...
+
 (define my-terminal (init-terminal-with-shell-trampoline (lambda ()
                                       (send the-canvas refresh))
                                     (or (getenv "SHELL")
@@ -27,7 +33,9 @@
 
     (define last-width 0)
     (define last-height 0)
-
+    (define last-lines '())
+    (define last-bitmap (make-object bitmap% 500 500))
+    (define last-dc (make-object bitmap-dc% last-bitmap))
     (define (resize-maybe width height)
       (if (or (not (equal? width last-width))
               (not (equal? height last-height)))
@@ -44,19 +52,21 @@
       (define-values (width height _ __) (send (send this get-dc) get-text-extent "a"))
       (values width height))
 
+    (define (cell-size)
+      (send this get-cell-size (make-cell #\@ default-style)))
     (define/public (get-xterm-size)
-      (define cell-size (send this get-cell-size (make-cell #\@ default-style)))
+      (define-values (c-width c-height) (cell-size))
       (define-values (x-size y-size) (send (send this get-dc) get-size))
       (define (trunc num) (inexact->exact (truncate num)))
-      (values (trunc (/ x-size (car cell-size))) (trunc (/ y-size (cadr cell-size)))))
+      (values (trunc (/ x-size c-width)) (trunc (/ y-size c-height))))
 
     (define/public (get-cell-size cell)
       ;; todo -- add font...
       (let-values [((width height _ __)
-                    (send (send this get-dc)
+                    (send last-dc
                           get-text-extent
                           (string (cell-character cell))))]
-        (list width height)))
+        (values width height)))
 
     (define/override (on-paint)
       (send frame set-label (terminal-title terminal))
@@ -69,20 +79,21 @@
       (define-values (current-font-width current-font-height) (get-text-width-height))
       (define-values (xterm-width xterm-height) (send this get-xterm-size))
       (define (get-line-size line)
-        (let* ((cell-sizes (map (lambda (l) (send this get-cell-size l)) line))
-               ;; what is the built-in sum function called?
-               (width (foldl (lambda (x sum) (+ x sum)) 0 (map car cell-sizes)))
-               (height (apply max (cons current-font-height (map cadr cell-sizes)))))
-          (list width height)))
-      (define (print-terminal-line line)
-        (let* ((line-size (get-line-size line))
-               (line-width (car line-size))
-               (line-height (cadr line-size)))
+        (define-values (c-width c-height) (cell-size))
+        (values (* c-width (length line)) c-height))
+      (define (print-terminal-line dc line really-print?)
+        ;; ok, so since this has extra side effects I need to fake print it either way
+        (define-values (line-width line-height) (get-line-size line))
+        (define-values (pixel-x-size pixel-y-size) (send dc get-size))
           (set! cur-y (- cur-y line-height))
           (set! cur-x 0)
-          (for [(cell line)]
-            (print-terminal-cell cell))))
-      (define (print-terminal-cell cell)
+          (when really-print?
+            (send dc set-brush "black" 'solid)
+            (send dc set-pen "black" 0 'solid)
+            (send dc draw-rectangle cur-x cur-y pixel-x-size line-height)
+            (for [(cell line)]
+              (print-terminal-cell dc cell))))
+      (define (print-terminal-cell dc cell)
         (define s (cell-style cell))
         (send dc set-font (send the-font-list find-or-create-font
                                 12
@@ -95,26 +106,38 @@
         (send dc set-text-background (style->color% s #f))
         (send dc set-text-foreground (style->color% s #t))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
-        (set! cur-x (+ cur-x (car (get-cell-size cell)))))
+        (define-values (cell-width cell-height) (get-cell-size cell))
+        (set! cur-x (+ cur-x cell-width)))
 
-      (define (repaint-all)
+      (define lines (terminal-get-lines terminal))
+      (define (repaint all?)
         ;; clear to start painting again...
-        (send dc set-background "black")
-        (send dc clear)
+        (when all?
+          (send dc clear)
+          (define-values (x-size y-size) (send (send this get-dc) get-size))
+          (printf "sizes: ~s ~s~n" x-size y-size)
+          (set! last-bitmap (make-object bitmap% x-size y-size))
+          (set! last-dc (make-object bitmap-dc% last-bitmap))
+          (send last-dc set-background "black")
+          (send last-dc clear)
+          (send last-dc set-text-mode 'solid)
+          )
 
-        (send dc set-text-mode 'solid) ; use the background color...
-        (send dc set-text-background "black")
-        (send dc set-text-foreground "white")
-
-        (for [(line (terminal-get-lines terminal))
+        (for [(line lines)
+              (ol last-lines)
               #:break (< cur-y 0)]
-          (print-terminal-line line)))
+          (if (or all? (not (equal? line ol)))
+              (print-terminal-line last-dc line #t)
+              (print-terminal-line last-dc line #f))
+        (send last-dc flush)))
 
       (define resized? (resize-maybe xterm-width xterm-height))
-      (if resized?
-          (repaint-all)
-          (repaint-all))
+      (if (or resized? (null? last-dc))
+          (repaint #t)
+          (repaint #f))
 
+      (send dc draw-bitmap last-bitmap 0 0)
+      (set! last-lines lines)
       (send dc flush)) ;; end on-paint
 
 
@@ -161,7 +184,6 @@
   (new terminal-canvas%
        [terminal my-terminal]
        [parent frame]
-       ;[style '(no-autoclear)]
        ))
 
 
