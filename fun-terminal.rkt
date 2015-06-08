@@ -19,11 +19,11 @@
   (make-cursor-line '() '() 0))
 
 (define-struct fun-terminal
-  (lines-before-cursor ; reversed from normal order
-   lines-after-cursor
-   line-with-cursor
-   length-lines-before-cursor
-   length-lines-after-cursor))
+  (pre-cursor-lines ; reversed from normal order
+   post-cursor-lines
+   cursor-line
+   pre-cursor-lines-length
+   post-cursor-lines-length))
 (define the-empty-fun-terminal
   (make-fun-terminal '() '() the-empty-cursor-line 0 0))
 
@@ -117,8 +117,8 @@
 
 
 (define (move-cursor-line terminal [forward? #t] [additive? #t] [line-index 'current])
-  (let* ((old-before (fun-terminal-lines-before-cursor terminal))
-         (old-after (fun-terminal-lines-after-cursor terminal)))
+  (let* ((old-before (fun-terminal-pre-cursor-lines terminal))
+         (old-after (fun-terminal-post-cursor-lines terminal)))
     (cond
       [(or (and forward? (null? old-after) (not additive?))
            (and (not forward?) (null? old-before)))
@@ -127,7 +127,7 @@
        (fun-terminal-line-break terminal)]
       [else
         terminal
-        (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
+        (let* ((old-cursor-line (fun-terminal-cursor-line terminal))
                (old-cursor-line-normalized (cursor-line->normal-line old-cursor-line))
                (index (if (equal? line-index 'current)
                           (cursor-line-length-cells-before-cursor old-cursor-line)
@@ -142,9 +142,9 @@
                (new-lines-after (if forward?
                                     (cdr old-after)
                                     (cons old-cursor-line-normalized old-after)))
-               (new-n-before (+ (fun-terminal-length-lines-before-cursor terminal)
+               (new-n-before (+ (fun-terminal-pre-cursor-lines-length terminal)
                                 (if forward? 1 -1)))
-               (new-n-after (+ (fun-terminal-length-lines-after-cursor terminal)
+               (new-n-after (+ (fun-terminal-post-cursor-lines-length terminal)
                                (if forward? -1 1))))
           (make-fun-terminal new-lines-before new-lines-after new-cursor-line new-n-before new-n-after))])))
 
@@ -160,37 +160,37 @@
 
 (define (fun-terminal-line-break terminal)
   (let* ((new-lines-before (cons (cursor-line->normal-line
-                                  (fun-terminal-line-with-cursor terminal))
-                                 (fun-terminal-lines-before-cursor terminal)))
+                                  (fun-terminal-cursor-line terminal))
+                                 (fun-terminal-pre-cursor-lines terminal)))
          (new-cursor-line the-empty-cursor-line))
     (struct-copy fun-terminal terminal
-                 [lines-before-cursor new-lines-before]
-                 [length-lines-before-cursor
-                  (add1 (fun-terminal-length-lines-before-cursor terminal))]
-                 [line-with-cursor new-cursor-line])))
+                 [pre-cursor-lines new-lines-before]
+                 [pre-cursor-lines-length
+                  (add1 (fun-terminal-pre-cursor-lines-length terminal))]
+                 [cursor-line new-cursor-line])))
 
 (define (fun-terminal-line-break-at-cursor terminal)
-  (let* ((old-cursor-line (fun-terminal-line-with-cursor terminal))
+  (let* ((old-cursor-line (fun-terminal-cursor-line terminal))
          (new-lines-before (cons (cursor-line-cells-before-cursor old-cursor-line)
-                                 (fun-terminal-lines-before-cursor terminal)))
+                                 (fun-terminal-pre-cursor-lines terminal)))
          (new-cursor-line (make-cursor-line '()
                                             (cursor-line-cells-after-cursor old-cursor-line)
                                             0)))
     (struct-copy fun-terminal terminal
-                 [lines-before-cursor new-lines-before]
-                 [length-lines-before-cursor
-                  (+ 1 (fun-terminal-length-lines-before-cursor terminal))]
-                 [line-with-cursor new-cursor-line])))
+                 [pre-cursor-lines new-lines-before]
+                 [pre-cursor-lines-length
+                  (+ 1 (fun-terminal-pre-cursor-lines-length terminal))]
+                 [cursor-line new-cursor-line])))
 
 (define (fun-terminal-add-blank-line-at-end term)
   (struct-copy fun-terminal term
-               [lines-after-cursor (append (fun-terminal-lines-after-cursor term) '(()))]
-               [length-lines-after-cursor (add1 (fun-terminal-length-lines-after-cursor term))]))
+               [post-cursor-lines (append (fun-terminal-post-cursor-lines term) '(()))]
+               [post-cursor-lines-length (add1 (fun-terminal-post-cursor-lines-length term))]))
 
 (define (fun-terminal-edit-cursor-line term cl-func . cl-args)
   (struct-copy fun-terminal term
-               [line-with-cursor (apply cl-func
-                                        (cons (fun-terminal-line-with-cursor term)
+               [cursor-line (apply cl-func
+                                        (cons (fun-terminal-cursor-line term)
                                               cl-args))]))
 
 (define (fun-terminal-insert-at-cursor terminal cell)
@@ -205,51 +205,51 @@
 
 (define (fun-terminal-forward-cells term [n-cells 1])
   (struct-copy fun-terminal term
-               [line-with-cursor (cursor-line-advance-cursor
-                                  (fun-terminal-line-with-cursor term)
+               [cursor-line (cursor-line-advance-cursor
+                                  (fun-terminal-cursor-line term)
                                   n-cells)]))
 
 (define (fun-terminal-delete-to-end-of-line term)
   (struct-copy fun-terminal term
-               [line-with-cursor (struct-copy cursor-line (fun-terminal-line-with-cursor term)
+               [cursor-line (struct-copy cursor-line (fun-terminal-cursor-line term)
                                               [cells-after-cursor '()])]))
 (define (fun-terminal-clear-from-start-of-line-to-cursor term)
   (fun-terminal-edit-cursor-line term cursor-line-clear-start-to-cursor))
 
-(define (fun-terminal-delete-lines-after-cursor term)
+(define (fun-terminal-delete-post-cursor-lines term)
   (struct-copy fun-terminal term
-               [lines-after-cursor '()]
-               [length-lines-after-cursor 0]))
+               [post-cursor-lines '()]
+               [post-cursor-lines-length 0]))
 
-(define (fun-terminal-delete-n-lines-before-cursor term n)
-  (if ((fun-terminal-length-lines-before-cursor term) . < . n)
+(define (fun-terminal-delete-n-pre-cursor-lines term n)
+  (if ((fun-terminal-pre-cursor-lines-length term) . < . n)
       (struct-copy fun-terminal term
-                   [lines-before-cursor '()]
-                   [length-lines-before-cursor 0])
+                   [pre-cursor-lines '()]
+                   [pre-cursor-lines-length 0])
       (struct-copy fun-terminal term
-                   [lines-before-cursor (list-tail (fun-terminal-lines-before-cursor term) n)]
-                   [length-lines-before-cursor (- (fun-terminal-length-lines-before-cursor term) n)])))
+                   [pre-cursor-lines (list-tail (fun-terminal-pre-cursor-lines term) n)]
+                   [pre-cursor-lines-length (- (fun-terminal-pre-cursor-lines-length term) n)])))
 
 (define (fun-terminal-clear-line term)
   (struct-copy fun-terminal term
-               [line-with-cursor the-empty-cursor-line]))
+               [cursor-line the-empty-cursor-line]))
 
 (define (fun-terminal->lines-from-end terminal [style-cursor? #f])
   ;; gives the lines in reverse order, because the last lines will be the ones used first
   (foldl cons
-         (fun-terminal-lines-before-cursor terminal)
-         (cons (cursor-line->normal-line (fun-terminal-line-with-cursor terminal) style-cursor?)
-               (fun-terminal-lines-after-cursor terminal))))
+         (fun-terminal-pre-cursor-lines terminal)
+         (cons (cursor-line->normal-line (fun-terminal-cursor-line terminal) style-cursor?)
+               (fun-terminal-post-cursor-lines terminal))))
 
 (define (fun-terminal-get-column term)
-  (cursor-line-length-cells-before-cursor (fun-terminal-line-with-cursor term)))
+  (cursor-line-length-cells-before-cursor (fun-terminal-cursor-line term)))
 
 (define (fun-terminal-get-rows-from-end term)
-  (fun-terminal-length-lines-after-cursor term))
+  (fun-terminal-post-cursor-lines-length term))
 
 (define (fun-terminal-get-num-rows term)
-  (+ (fun-terminal-length-lines-after-cursor term)
-     (fun-terminal-length-lines-before-cursor term)
+  (+ (fun-terminal-post-cursor-lines-length term)
+     (fun-terminal-pre-cursor-lines-length term)
      1))
 
 (define (fun-terminal-scroll-region term n-pre n-post n-scrolls)
@@ -265,18 +265,18 @@
                               (list-tail after-lines n-after))))
       (values new-before new-c-line new-after)))
   (let* ((forward? (positive? n-scrolls))
-         (before-lines (if forward? (fun-terminal-lines-before-cursor term)
-                           (fun-terminal-lines-after-cursor term)))
-         (after-lines (if forward? (fun-terminal-lines-after-cursor term)
-                          (fun-terminal-lines-before-cursor term)))
+         (before-lines (if forward? (fun-terminal-pre-cursor-lines term)
+                           (fun-terminal-post-cursor-lines term)))
+         (after-lines (if forward? (fun-terminal-post-cursor-lines term)
+                          (fun-terminal-pre-cursor-lines term)))
          (nn-pre (if forward? n-pre n-post))
          (nn-post (if forward? n-post n-pre))
-         (c-line (fun-terminal-line-with-cursor term))
+         (c-line (fun-terminal-cursor-line term))
          (c-line-index (length (cursor-line-cells-before-cursor c-line)))
-         (norm-line (cursor-line->normal-line (fun-terminal-line-with-cursor term))))
+         (norm-line (cursor-line->normal-line (fun-terminal-cursor-line term))))
     (define-values (new-before new-c-line new-after)
       (-scroll norm-line before-lines after-lines nn-pre nn-post (abs n-scrolls)))
     (struct-copy fun-terminal term
-                 [lines-before-cursor (if forward? new-before new-after)]
-                 [lines-after-cursor (if forward? new-after new-before)]
-                 [line-with-cursor (normal-line->cursor-line new-c-line c-line-index)])))
+                 [pre-cursor-lines (if forward? new-before new-after)]
+                 [post-cursor-lines (if forward? new-after new-before)]
+                 [cursor-line (normal-line->cursor-line new-c-line c-line-index)])))

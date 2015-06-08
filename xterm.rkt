@@ -17,11 +17,11 @@
 ;;;   I really should just redraw any cells that are different instead
 ;;; - wrap input that is too long after a resize down to fewer columns...
 
-(define my-terminal (init-terminal-with-shell-trampoline (lambda ()
-                                      (send the-canvas refresh))
-                                    (or (getenv "SHELL")
-                                        "/bin/sh")
-                                    "-i"))
+(define my-terminal (init-terminal (lambda ()
+                                     (send the-canvas refresh))
+                                   (or (getenv "SHELL")
+                                       "/bin/sh")
+                                   "-i"))
 
 (define frame (new frame%
                    [label "racket xterm"]

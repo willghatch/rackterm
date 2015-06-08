@@ -9,10 +9,14 @@
 ;; This is the main file for the terminal library.  It is to be wrapped by a program
 ;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
 ;; terminal!
-
-(provide (all-defined-out)
-         (all-from-out "cell.rkt")
-         (struct-out cell))
+(provide (all-from-out "cell.rkt")
+         init-terminal
+         terminal-get-lines
+         terminal-title
+         send-char-to-terminal-process
+         terminal-set-size
+         terminal-input-listener
+         )
 
 
 ;; TODO:
@@ -42,7 +46,7 @@
    )
   #:mutable)
 
-(define (init-terminal-with-shell-trampoline redraw-callback command . command-args)
+(define (init-terminal redraw-callback command . command-args)
   (define (-init-terminal m-in m-out master-fd slave-fd redraw-callback)
     (make-terminal the-empty-fun-terminal
                    the-empty-fun-terminal
@@ -153,9 +157,9 @@
 (define (terminal-append-line-at-end term)
   (terminal-mutate term (lambda (ft) (fun-terminal-add-blank-line-at-end ft))))
 (define (terminal-clear-from-cursor-to-end term)
-  (define n-lines (fun-terminal-length-lines-after-cursor (terminal-fun-terminal term)))
+  (define n-lines (fun-terminal-post-cursor-lines-length (terminal-fun-terminal term)))
   (terminal-delete-to-end-of-line term)
-  (terminal-mutate term (lambda (ft) (fun-terminal-delete-lines-after-cursor ft)))
+  (terminal-mutate term (lambda (ft) (fun-terminal-delete-post-cursor-lines ft)))
   (for ((i (in-range n-lines)))
     (terminal-append-line-at-end term)))
 (define (terminal-insert-blank term [n 1] [after-cursor? #f])
@@ -168,7 +172,7 @@
   (define rows (terminal-get-row term))
   (define cols (terminal-get-column term))
   (terminal-clear-current-line term)
-  (terminal-mutate term (lambda (ft) (fun-terminal-delete-n-lines-before-cursor ft rows)))
+  (terminal-mutate term (lambda (ft) (fun-terminal-delete-n-pre-cursor-lines ft rows)))
   (for ((i (in-range rows)))
     (terminal-line-break-at-cursor term))
   (terminal-insert-blank term cols))
