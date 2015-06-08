@@ -64,11 +64,14 @@
                    "rackterm"
                    ))
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
+  (define sub-env (environment-variables-copy (current-environment-variables)))
+  (environment-variables-set! sub-env #"TERM" #"rackterm")
   (define-values (subproc sub-in sub-out sub-err)
-    (apply subprocess (append (list s-out s-in 'stdout
-                                    "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline"
-                                    command)
-                              command-args)))
+    (parameterize ([current-environment-variables sub-env])
+      (apply subprocess (append (list s-out s-in 'stdout
+                                      "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline"
+                                      command)
+                                command-args))))
   (let ((new-term
          (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
     (terminal-set-default-tab-stops new-term)

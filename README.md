@@ -20,7 +20,7 @@ It is a work in progress and is currently lacking many features which I hope to 
 TERM variable
 -------------
 
-Right now it doesn't set it, so it will just keep whatever you had before (probably `TERM=xterm`), which should work ok.  If you want real support for features like 256color or italics, you need to run `tic $RACKTERM_INSTALL_DIR/rackterm.terminfo` and set `TERM=rackterm` in your shell.
+The rackterm/xterm program runs the tic program on startup to load the rackterm terminfo definition.  It starts with `TERM=rackterm`
 
 OS Support
 ----------

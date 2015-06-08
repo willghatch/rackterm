@@ -192,7 +192,11 @@
        ))
 
 
-
+;; Let's just run tic here and not have others worry about this terminfo crap.
+(require racket/system)
+(require racket/runtime-path)
+(define-runtime-path terminfo-file "rackterm.terminfo")
+(system (string-append "tic " (path->string terminfo-file)))
 
 (send the-canvas focus)
 (define the-dc (send the-canvas get-dc))
