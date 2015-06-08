@@ -17,6 +17,11 @@ This is a terminal emulator with support for [24-bit color](https://gist.github.
 
 It is a work in progress and is currently lacking many features which I hope to gradually add.  Currently I can run emacs, vim, and other curses programs seemingly just fine.  For an idea of where I want to take the project, see the CONTRIBUTING.md file.
 
+TERM variable
+-------------
+
+Right now it doesn't set it, so it will just keep whatever you had before (probably `TERM=xterm`), which should work ok.  If you want real support for features like 256color or italics, you need to run `tic $RACKTERM_INSTALL_DIR/rackterm.terminfo` and set `TERM=rackterm` in your shell.
+
 OS Support
 ----------
 
