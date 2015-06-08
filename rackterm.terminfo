@@ -1,0 +1,19 @@
+# TERMINFO file for rackterm
+#
+# Based on xterm terminfo.  May not be entirely correct, since I'm just saying,
+# "Hey, I'm basically the same as an xterm."
+#
+# Install:
+#
+#   tic rackterm.terminfo
+#
+# Usage:
+#
+#   export TERM=rackterm
+#
+rackterm|racket terminal emulator,
+#       italics
+	sitm=\E[3m, ritm=\E[23m,
+#       OK, it's basically like xterm...
+	use=xterm-256color,
+
