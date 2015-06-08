@@ -6,11 +6,16 @@
 (require racket/gui/base)
 (require "terminal.rkt")
 
+;;; YARR!!! Here be the ugliest code in the whole project!  This file is a mess!
+
 ;;; TODO:
 ;;; - clean this crap up
 ;;; - add customization to set the 16 color palette map, input mapping
 ;;; - do key input mapping (arrow keys, etc)
 ;;; - do cursor better...
+;;; - make it faster -- currently if anything on a line is different I redraw the line.
+;;;   I really should just redraw any cells that are different instead
+;;; - wrap input that is too long after a resize down to fewer columns...
 
 (define my-terminal (init-terminal-with-shell-trampoline (lambda ()
                                       (send the-canvas refresh))

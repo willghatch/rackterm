@@ -21,6 +21,7 @@ Plans
 * I would like the bulk of configuration to be able to be shared by the various frontends to rackterm, but individual modifications to be made to each.  Also, the configuration should be able to source more than one file.  A common pattern I use is to keep my main configuration for programs in my dotfiles, but source a local configuration file if it exists to add any extra configuration I need on a specific computer.  Common differences may include font sizes, for example.
 * Since I want configuration to be in full racket, but many people like simple, weak configuration, perhaps it could load configuration in multiple formats, or there could be a #lang rackterm-config which would make it easy.  The configuration could be loaded with some dynamic-require or perhaps xmonad-style by wrapping the original code with the configuration to make a new executable.
 * And, of course, I want all the expected terminal features that I don't have yet -- scrollback, mouse support, copy/paste with display server, etc.
+* And I'd like to have some sort of mode to, say, rather than spawning the child process itself and handling things the Unix way, it might be good to have it be able to connect to an actual serial input, or be an ssh terminal (eg. in place of putty on Windows), so I should add support for that at some point.
 
 Other thoughts
 --------------

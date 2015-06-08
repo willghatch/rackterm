@@ -1,11 +1,45 @@
 Terminal emulator in racket!
 
-Very much a work in progress, started as a project to learn Racket, though I hope it grows beyond that to be one I can use as my daily driver.  Therefore there are various design goals for... some day.
+Install
+-------
 
-It is not yet really packaged or anything.  To run the xterm, run `racket xterm.rkt`.
+Clone the repo, `cd` into it, and run `raco pkg install`.
 
-It has [24-bit color support](https://gist.github.com/XVilka/8346728), as well as 256color support and standard 8 color support.  Other styling is, at the time of writing, not supported (bold, underline, blink, etc).
+Run
+---
 
-At this point I seem to be able to run vim and emacs on it fine.
+`racket -l rackterm/xterm`
 
-Right now it depends on the setsid(1) command to spawn child processes that can have job control, and depends on some hard-coded constants that are likely only valid for Linux, so it's not (presently) portable.
+What is this?
+-------------
+
+This is a terminal emulator with support for [24-bit color](https://gist.github.com/XVilka/8346728), italics, and more, written in Racket.
+
+It is a work in progress and is currently lacking many features which I hope to gradually add.  Currently I can run emacs, vim, and other curses programs seemingly just fine.  For an idea of where I want to take the project, see the CONTRIBUTING.md file.
+
+OS Support
+----------
+
+So far I know it runs on Arch Linux.  It depends on some FFI code, and has some hard coded values of some C constants which may differ between systems.  They should stay pretty static on any given system, since people don't want to break existing executables, but they may differ between platforms.  If it doesn't work on your platform, raise an issue in the issue tracker at https://github.com/willghatch/rackterm please.
+
+All of my personal computers run GNU/Linux, and I don't really have access to a Mac, and I have no idea if this could, say, run on cygwin.  I'm quite sure it can run on any BSD, as long as I get the constants and the shared libraries to load right, but I don't really want to go set up a VM for *BSD unless I find out that someone actually wants to use this on that platform.  And if you're going to use it on one of these platforms, you might as well help me figure out the constant situation.
+
+To that end, I've included `constants.c`, which you should be able to compile and run to tell me what the constants are.  For convenience, `constants.sh` does just that.  If there are errors in compilation, it means that those constants are defined somewhere different than they are on GNU/Linux systems.  Dang.  I hope you can figure out where they are!
+
+Also, I will need to load the correct shared library.  Here is what is used:
+
+In `libutil` I have `ioctl` and `openpty`.  This one could be problematic.
+
+In `libc` I have `setsid`, `setpgid`, and `execvp`.  I don't expect there to be a problem with this one.
+
+I would love for this to be cross platform, so if anybody cares, please send in anything you find about that.
+
+Want to contribute to the future best terminal emulator ever?
+-------------------------------------------------------------
+
+See the included `CONTRIBUTING.md` file.  Or, you know, just go make another terminal emulator that will be better than this one, and all others.
+
+License
+-------
+
+Same as racket itself -- LGPLv3.
