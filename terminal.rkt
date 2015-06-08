@@ -253,12 +253,13 @@
 (define (terminal-handle-character term char)
   ;(printf "handling: ~s~n" char)
   (define handler (terminal-current-char-handler term))
-  (cond
-    [(not (null? handler)) (handler term char)]
-    [((char->integer char) . < . 32)
-     (handle-ascii-controls term char)]
-    [else
-     (terminal-overwrite-character term char)])
+  (with-handlers ([(λ (exn) #t) (λ (exn) (printf "ignoring exception: ~a" exn))])
+    (cond
+      [(not (null? handler)) (handler term char)]
+      [((char->integer char) . < . 32)
+       (handle-ascii-controls term char)]
+      [else
+       (terminal-overwrite-character term char)]))
   ((terminal-redraw-callback term)))
 
 (define (terminal-input-listener term)
