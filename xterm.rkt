@@ -83,9 +83,9 @@
       ;; How do you just get one value and ignore the others?
       (define-values (current-font-width current-font-height) (get-text-width-height))
       (define-values (xterm-width xterm-height) (send this get-xterm-size))
+      (define-values (cell-width cell-height) (cell-size))
       (define (get-line-size line)
-        (define-values (c-width c-height) (cell-size))
-        (values (* c-width (length line)) c-height))
+        (values (* cell-width (length line)) cell-height))
       (define (print-terminal-line dc line really-print?)
         ;; ok, so since this has extra side effects I need to fake print it either way
         (define-values (line-width line-height) (get-line-size line))
@@ -111,7 +111,6 @@
         (send dc set-text-background (style->color% s #f))
         (send dc set-text-foreground (style->color% s #t))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
-        (define-values (cell-width cell-height) (get-cell-size cell))
         (set! cur-x (+ cur-x cell-width)))
 
       (define lines (terminal-get-lines terminal))
