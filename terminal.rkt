@@ -95,8 +95,8 @@
   (unless (equal? n-scrolls 0)
     (let* ((cursor-line-num (terminal-get-row term))
            (region (terminal-current-scrolling-region term))
-           (region-start (car region))
-           (region-end (cdr region))
+           (region-start (if (null? region) 0 (car region)))
+           (region-end (if (null? region) (sub1 (terminal-current-height term)) (cdr region)))
            (n-pre (cursor-line-num . - . region-start))
            (n-post (region-end . - . cursor-line-num)))
       (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))
@@ -301,6 +301,10 @@
   (case char
     [(#\D) (terminal-forward-lines term)]
     [(#\H) (terminal-set-tab-stop term)]
+    ;; M should scroll up one line.  If at the top, it should remove the bottom line and insert one
+    [(#\M) (if (equal? 0 (terminal-get-row term))
+               (terminal-insert-lines-with-scrolling-region term 1)
+               (terminal-forward-lines term -1))]
     [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
     [(#\]) (set-terminal-current-char-handler! term new-osc-handler)]
 
