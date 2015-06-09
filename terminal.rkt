@@ -260,7 +260,7 @@
 (define (terminal-handle-character term char)
   ;(printf "handling: ~s~n" char)
   (define handler (terminal-current-char-handler term))
-  (with-handlers ([(λ (exn) #t) (λ (exn) (printf "ignoring exception: ~a" exn))])
+  (with-handlers ([(λ (exn) #t) (λ (exn) ((error-display-handler) (exn-message exn) exn))])
     (cond
       [(not (null? handler)) (handler term char)]
       [((char->integer char) . < . 32)
