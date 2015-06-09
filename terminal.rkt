@@ -604,7 +604,7 @@
          (terminal-delete-forward-at-cursor term (car-defaulted params 1)))
    ;; X - erase n characters on current line -- meaning characters are replaced with spaces
    #\X (lambda (term char params lq?)
-         (let ((n (car-defaulted params)))
+         (let ((n (car-defaulted params 1)))
            (terminal-delete-forward-at-cursor term n)
            (terminal-insert-blank term n)))
 
