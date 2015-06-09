@@ -602,6 +602,12 @@
    ;; P - delete n characters on current line -- meaning characters shift left
    #\P (lambda (term char params lq?)
          (terminal-delete-forward-at-cursor term (car-defaulted params 1)))
+   ;; S scroll up n lines
+   #\S (lambda (term char params lq?)
+         (terminal-scroll-region term (car-defaulted params 1)))
+   ;; T scroll down n lines
+   #\T (lambda (term char params lq?)
+         (terminal-scroll-region term (- (car-defaulted params 1))))
    ;; X - erase n characters on current line -- meaning characters are replaced with spaces
    #\X (lambda (term char params lq?)
          (let ((n (car-defaulted params 1)))
