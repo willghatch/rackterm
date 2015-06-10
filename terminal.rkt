@@ -43,6 +43,7 @@
    current-scrolling-region ; (cons start-line, end-line)
    current-tab-stops ; sorted list of tab stop indices
    title
+   margin-relative-addressing ; do the go-to-row/col commands base on the scrolling region -- DECOM
    )
   #:mutable)
 
@@ -62,6 +63,7 @@
                    null
                    '()
                    "rackterm"
+                   #f ; margin relative addressing
                    ))
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
   (define sub-env (environment-variables-copy (current-environment-variables)))
@@ -93,14 +95,17 @@
                                                       terminal))))
 (define (terminal-scroll-region term n-scrolls)
   (unless (equal? n-scrolls 0)
-    (let* ((cursor-line-num (terminal-get-row term))
+    (let* ((cur-row (terminal-get-row term))
+           (cursor-line-num (terminal-get-row term))
            (region (terminal-current-scrolling-region term))
            (region-start (if (null? region) 0 (car region)))
            (region-end (if (null? region) (sub1 (terminal-current-height term)) (cdr region)))
            (n-pre (cursor-line-num . - . region-start))
-           (n-post (region-end . - . cursor-line-num)))
-      (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post n-scrolls)))
-      (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n-scrolls))))))
+           (n-post (region-end . - . cursor-line-num))
+           (sign (if (n-scrolls . < . 0) - +))
+           (nn-scrolls (sign (min (abs n-scrolls) (+ n-pre n-post 1)))))
+      (terminal-mutate term (lambda (ft) (fun-terminal-scroll-region ft n-pre n-post nn-scrolls)))
+      (terminal-go-to-row term cur-row))))
 
 (define (terminal-delete-lines-with-scrolling-region term n-deletions)
   (let* ((cur (terminal-get-row term))
@@ -133,10 +138,10 @@
   (terminal-mutate term (lambda (ft) (fun-terminal-clear-line ft))))
 (define (terminal-forward-chars term [n 1])
   (terminal-mutate term (lambda (ft) (fun-terminal-forward-cells ft n))))
-(define (-terminal-forward-lines term [n 1])
-  (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n))))
-(define (terminal-forward-lines term [n 1])
-  (if (null? (terminal-current-scrolling-region term))
+(define (terminal-forward-lines term [n 1] #:scrollable? [scrollable? #t])
+  (define (-terminal-forward-lines term [n 1])
+    (terminal-mutate term (lambda (ft) (fun-terminal-forward-lines ft n))))
+  (if (or (not scrollable?) (null? (terminal-current-scrolling-region term)))
       (-terminal-forward-lines term n)
       (let* ((forward? (positive? n))
              (cur (terminal-get-row term))
@@ -147,9 +152,20 @@
              (beyond (if ((if forward? > <) moved end)
                          (- moved end)
                          0))
-             (to-move (- n beyond)))
-        (-terminal-forward-lines term to-move)
-        (terminal-scroll-region term beyond))))
+             (to-move (- n beyond))
+             ;; If the cursor starts outside of the scrolling region and we try to keep
+             ;; moving farther away, to-move and beyond will have opposite signs.
+             ;; In this case we should just move, not move and scroll...
+             (was-already-beyond (and (not (equal? 0 beyond))
+                                      (not (equal? (negative? to-move)
+                                                   (negative? beyond))))))
+;        (printf "forward-n-lines ~a, cur ~a, region ~a, to-move ~a, to-scroll ~a, was-already-beyond ~a~n"
+;                n cur region to-move beyond was-already-beyond)
+        (if was-already-beyond
+            (-terminal-forward-lines term n)
+            (begin
+              (-terminal-forward-lines term to-move)
+              (terminal-scroll-region term beyond))))))
 
 (define (terminal-overwrite term cell)
   ;; This may need looking into when I want to handle re-wrapping on size changes
@@ -250,11 +266,16 @@
     (terminal-forward-chars term diff)))
 (define (terminal-go-to-row term row)
   (let* ((cur-row (terminal-get-row term))
-        (diff (row . - . cur-row)))
-    (terminal-forward-lines term diff)))
+         (relative-cur-row (if (and (terminal-margin-relative-addressing term)
+                                    (terminal-current-scrolling-region term))
+                               (- cur-row (car (terminal-current-scrolling-region term)))
+                               cur-row))
+         (diff (row . - . relative-cur-row)))
+    (terminal-forward-lines term diff #:scrollable? #f)))
 
 
 (define (terminal-overwrite-character term char)
+  ;(printf "writing character ~s~n" char)
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-handle-character term char)
@@ -402,8 +423,11 @@
       [else
        (let ((end-handler (hash-ref csi-table char (lambda ()
                                                      (lambda (term char params lq?)
-                                                       (printf "ignored CSI terminator: ~a with params: ~a~n" char params))))))
-         (end-handler term char (append completed-params (list current-param)) leading-question?))])))
+                                                       (printf "ignored CSI terminator: ~a with params: ~a~n" char params)))))
+             (final-params (append completed-params (list current-param))))
+
+         (printf "handling CSI sequence ending in ~a.  Params: ~a lq?: ~a~n" char final-params leading-question?)
+         (end-handler term char final-params leading-question?))])))
 
 (define new-csi-handler (make-csi-handler '() 0 #f))
 
@@ -420,15 +444,16 @@
 
 (define (handle-set-mode term char params private?)
   ;; reset if l, set if h
-  (define reset? (equal? char #\l))
+  (define on? (equal? char #\h))
   (define (ignore)
-    (printf "ignoring mode set - reset? ~a, private? ~a, params ~a~n"
-            reset? private? params))
+    (printf "ignoring mode set - on? ~a, private? ~a, params ~a~n"
+            on? private? params))
   (define setting (car-defaulted params 0))
   (if private?
       (case setting
+        [(6) (set-terminal-margin-relative-addressing! on?)]
         [(1049) (begin
-                  (set-terminal-current-alt-screen-state! term (not reset?))
+                  (set-terminal-current-alt-screen-state! term on?)
                   (set-terminal-fun-terminal-alt! term the-empty-fun-terminal))]
         [else (ignore)])
       (case setting

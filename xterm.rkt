@@ -149,6 +149,7 @@
       (let ((key (send event get-key-code)))
         (if (char? key)
             (for ((char (map-event-to-terminal-codes event)))
+              ;(printf "sending to subproc: ~s~n" char)
               (send-char-to-terminal-process terminal char))
             null)))
 
