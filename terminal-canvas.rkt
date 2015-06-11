@@ -164,7 +164,7 @@
       (for ((o others))
         (send o refresh))
       (if (null? others)
-          (void)
+          (exit 0)
           (send (car others) focus))
       (printf "children: ~s~n" (send parent get-children))
       (send parent reflow-container)
