@@ -4,7 +4,9 @@
          racket/class)
 (require "terminal.rkt")
 
-(provide terminal-canvas%)
+(provide terminal-canvas%
+         )
+
 ;;; YARR!!! Here be the ugliest code in the whole project!  This file is a mess!
 
 ;;; TODO:
@@ -18,12 +20,29 @@
 
 (define terminal-canvas%
   (class canvas%
-    (init-field [terminal (init-terminal (lambda ()
-                                          (send this refresh))
-                                        (or (getenv "SHELL")
-                                            "/bin/sh")
-                                        "-i")])
+    (init-field [command-and-args (list (or (getenv "SHELL") "/bin/sh") "-i")])
+    (init-field [terminal
+                 (apply init-terminal
+                        (append
+                         (list (lambda ()
+                                 (send this refresh))
+                               (lambda ()
+                                 (send this handle-subproc-ended)))
+                         (if (null? command-and-args)
+                             (list (or (getenv "SHELL")
+                                       "/bin/sh")
+                                   "-i")
+                             command-and-args)))])
+
     (define/public (get-terminal) terminal)
+
+    (init-field [font-size 12])
+    (define/public (get-font-size) font-size)
+    (define/public (set-font-size! size) (set! font-size size))
+
+    (init-field [font "DejaVu Sans Mono"])
+    (define/public (get-font) font)
+    (define/public (set-font! f) (set! font f))
 
     (define last-width 0)
     (define last-height 0)
@@ -46,21 +65,31 @@
       (define-values (width height _ __) (send (send this get-dc) get-text-extent "a"))
       (values width height))
 
+    (define (set-dc-font dc style)
+      (send dc set-font (send the-font-list find-or-create-font
+                              (send this get-font-size)
+                              (send this get-font)
+                              'modern ; default, decorative, roman, script, swiss, modern, symbol, system
+                              (if (style-italic style) 'italic 'normal) ; normal, italic, slant
+                              (if (style-bold style) 'bold 'normal) ; normal, bold, light
+                              (style-underline style) ; underline?
+                              )))
+
     (define (cell-size)
-      (send this get-cell-size (make-cell #\@ default-style)))
+      (define (get-cell-size cell)
+        (set-dc-font last-dc (cell-style cell))
+        (let-values [((width height _ __)
+                      (send last-dc
+                            get-text-extent
+                            (string (cell-character cell))))]
+          (values width height)))
+      (get-cell-size (make-cell #\@ default-style)))
     (define/public (get-xterm-size)
       (define-values (c-width c-height) (cell-size))
       (define-values (x-size y-size) (send (send this get-dc) get-size))
       (define (trunc num) (inexact->exact (truncate num)))
       (values (trunc (/ x-size c-width)) (trunc (/ y-size c-height))))
 
-    (define/public (get-cell-size cell)
-      ;; todo -- add font...
-      (let-values [((width height _ __)
-                    (send last-dc
-                          get-text-extent
-                          (string (cell-character cell))))]
-        (values width height)))
 
     (define/override (on-paint)
       (send this set-label (terminal-title terminal))
@@ -89,14 +118,7 @@
               (print-terminal-cell dc cell))))
       (define (print-terminal-cell dc cell)
         (define s (cell-style cell))
-        (send dc set-font (send the-font-list find-or-create-font
-                                12
-                                ;"DejaVu Sans Mono"
-                                'modern ; default, decorative, roman, script, swiss, modern, symbol, system
-                                (if (style-italic s) 'italic 'normal) ; normal, italic, slant
-                                (if (style-bold s) 'bold 'normal) ; normal, bold, light
-                                (style-underline s) ; underline?
-                                ))
+        (set-dc-font dc s)
         (send dc set-text-background (style->color% s #f))
         (send dc set-text-foreground (style->color% s #t))
         (send dc draw-text (string (cell-character cell)) cur-x cur-y)
@@ -132,6 +154,21 @@
       (send dc draw-bitmap last-bitmap 0 0)
       (set! last-lines lines)
       (send dc flush)) ;; end on-paint
+
+    (define/public (handle-subproc-ended)
+      ;; TODO - this should be a parameter that can be set from outside...
+      (define parent (send this get-parent))
+      (define focused? (send this has-focus?))
+      (send parent delete-child this)
+      (define others (send parent get-children))
+      (for ((o others))
+        (send o refresh))
+      (if (null? others)
+          (void)
+          (send (car others) focus))
+      (printf "children: ~s~n" (send parent get-children))
+      (send parent reflow-container)
+      )
 
 
     (define/override (on-char event)

@@ -44,10 +44,11 @@
    current-tab-stops ; sorted list of tab stop indices
    title
    margin-relative-addressing ; do the go-to-row/col commands base on the scrolling region -- DECOM
+   subproc-ended-callback
    )
   #:mutable)
 
-(define (init-terminal redraw-callback command . command-args)
+(define (init-terminal redraw-callback subproc-ended-callback command . command-args)
   (define (-init-terminal m-in m-out master-fd slave-fd redraw-callback)
     (make-terminal the-empty-fun-terminal
                    the-empty-fun-terminal
@@ -64,6 +65,7 @@
                    '()
                    "rackterm"
                    #f ; margin relative addressing
+                   subproc-ended-callback
                    ))
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
   (define sub-env (environment-variables-copy (current-environment-variables)))
@@ -77,6 +79,9 @@
   (let ((new-term
          (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
     (terminal-set-default-tab-stops new-term)
+    (thread (lambda ()
+              (subprocess-wait subproc)
+              (subproc-ended-callback)))
     new-term))
 
 
@@ -299,7 +304,7 @@
         (if (not (eof-object? char))
             (begin (terminal-handle-character term char)
                    (listener))
-            null)))
+            (void))))
     (sleep 0)
     (listener)))
 
