@@ -8,6 +8,33 @@
 
 (provide (all-defined-out))
 
+;; How can I get these from the .h file automatically, so this won't just break?
+(define TIOCSWINSZ_gnu #x5414)
+(define TIOCGWINSZ_gnu #x5413)
+(define TIOCSCTTY_gnu #x540E)
+(define TIOCNOTTY_gnu #x5422)
+
+(define TIOCSWINSZ_freebsd #x80087467)
+(define TIOCGWINSZ_freebsd #x40087468)
+(define TIOCSCTTY_freebsd #x20007461)
+(define TIOCNOTTY_freebsd #x20007471)
+
+(define os-type (system-type 'os))
+(define freebsd-ioctls? (equal? os-type 'macosx))
+;; ioctl request parameters are ints in Linux, but longs in FreeBSD and MacOSX
+(define ioctl-req-type (if (or (equal? (system-type 'word) 64)
+                               freebsd-ioctls?)
+                           _long _int))
+
+;; set window size
+(define TIOCSWINSZ (if freebsd-ioctls? TIOCSWINSZ_freebsd TIOCSWINSZ_gnu))
+;; get window size
+(define TIOCGWINSZ (if freebsd-ioctls? TIOCGWINSZ_freebsd TIOCGWINSZ_gnu))
+;; set controlling terminal
+(define TIOCSCTTY (if freebsd-ioctls? TIOCSCTTY_freebsd TIOCSCTTY_gnu))
+;; disown the controlling terminal
+(define TIOCNOTTY (if freebsd-ioctls? TIOCNOTTY_freebsd TIOCNOTTY_gnu))
+
 (define-ffi-definer define-pty (ffi-lib "libutil"))
 
 (define-cstruct _winsize ([ws_row _ushort]
@@ -57,16 +84,11 @@
     (values m-in m-out s-in s-out master slave)))
 
 
-;; How can I get these from the .h file automatically, so this won't just break?
-(define TIOCSWINSZ #x5414) ; set window size
-(define TIOCGWINSZ #x5413) ; get window size
-(define TIOCSCTTY #x540E) ; set controlling terminal
-(define TIOCNOTTY #x5422) ; disown the controlling terminal
 
 (define (set-pty-size fd winsize)
   (define-pty ioctl (_fun
                      (fd : _int)
-                     (request : _int)
+                     (request : ioctl-req-type)
                      (winsize : (_ptr i _winsize))
                      -> (ret : _int)
                      -> (when (< ret 0) (error "ioctl failed"))))
@@ -75,7 +97,7 @@
 (define (get-pty-size fd)
   (define-pty ioctl (_fun
                      (fd : _int)
-                     (request : _int)
+                     (request : ioctl-req-type)
                      (winsize : (_ptr o _winsize))
                      -> (ret : _int)
                      -> (if (< ret 0) (error "ioctl failed")
@@ -106,7 +128,7 @@
 (define (set-controlling-tty fd)
   (define-pty ioctl (_fun
                      (fd : _int)
-                     (request : _int)
+                     (request : ioctl-req-type)
                      _pointer
                      -> (ret : _int)
                      -> (when (equal? ret -1) (error "ioctl failed to set the controlling terminal"))))
@@ -115,7 +137,7 @@
 (define (disown-tty)
   (define-pty ioctl (_fun
                      (fd : _int)
-                     (request : _int)
+                     (request : ioctl-req-type)
                      _pointer
                      -> (ret : _int)
                      -> (when (equal? ret -1) (error "ioctl failed to disown controlling terminal"))))
