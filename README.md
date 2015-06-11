@@ -22,22 +22,17 @@ TERM variable
 
 The rackterm/xterm program runs the tic program on startup to load the rackterm terminfo definition.  It starts with `TERM=rackterm`
 
+Fonts
+-----
+
+They'll be configurable soon, but FYI if your platform doesn't have the default font "Deja Vu Sans Mono" installed, it will dis-gracefully degrade to a really bad font and look ridiculous.
+
 OS Support
 ----------
 
-So far I know it runs on Arch Linux.  It depends on some FFI code, and has some hard coded values of some C constants which may differ between systems.  They should stay pretty static on any given system, since people don't want to break existing executables, but they may differ between platforms.  If it doesn't work on your platform, raise an issue in the issue tracker at https://github.com/willghatch/rackterm please.
+Rackterm is known to work on GNU/Linux and MacOSX.  If installing a FreeBSD virtual machine and running anything on it weren't such a hassle, I would have tested it, but it should work as well.
 
-All of my personal computers run GNU/Linux, and I don't really have access to a Mac, and I have no idea if this could, say, run on cygwin.  I'm quite sure it can run on any BSD, as long as I get the constants and the shared libraries to load right, but I don't really want to go set up a VM for *BSD unless I find out that someone actually wants to use this on that platform.  And if you're going to use it on one of these platforms, you might as well help me figure out the constant situation.
-
-To that end, I've included `constants.c`, which you should be able to compile and run to tell me what the constants are.  For convenience, `constants.sh` does just that.  If there are errors in compilation, it means that those constants are defined somewhere different than they are on GNU/Linux systems.  Dang.  I hope you can figure out where they are!
-
-Also, I will need to load the correct shared library.  Here is what is used:
-
-In `libutil` I have `ioctl` and `openpty`.  This one could be problematic.
-
-In `libc` I have `setsid`, `setpgid`, and `execvp`.  I don't expect there to be a problem with this one.
-
-I would love for this to be cross platform, so if anybody cares, please send in anything you find about that.
+If it doesn't run on your system, open an issue at https://github.com/willghatch/rackterm and give any information you have.  For Unix, it will be a problem with FFI loading and shouldn't be hard to solve.  For Windows... well, I have no idea how terminals work on Windows, so good luck.
 
 Want to contribute to the future best terminal emulator ever?
 -------------------------------------------------------------
