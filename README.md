@@ -3,7 +3,7 @@ Terminal emulator in racket!
 Install
 -------
 
-Clone the repo, `cd` into it, and run `raco pkg install`.
+You can install from the racket package system by running `raco pkg install rackterm`.  If you want to get it straight from git, clone the repo, `cd` into it, and run `raco pkg install`.
 
 Run
 ---
