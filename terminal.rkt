@@ -491,7 +491,7 @@
   (if (null? params)
       'done
       (case (car params)
-        [(0) (set-terminal-current-cell-style! term default-style)]
+        [(0) (set-style-and-handle default-style)]
         [(1) (set-style-and-handle (struct-copy style old-style
                                                 [bold #t]))]
         ;[(2) null]
