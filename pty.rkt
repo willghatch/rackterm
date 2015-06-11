@@ -123,7 +123,9 @@
   (define-libc execvp (_fun (file : _string) (argv : (_array/list _string argv-array-len))
                             -> (ret : _int)
                           -> (error "execvp failed")))
-  (execvp command (append args (make-list (- argv-array-len (length args)) #f))))
+  (execvp command (append (list command)
+                          args
+                          (make-list (- argv-array-len 1 (length args)) #f))))
 
 (define (set-controlling-tty fd)
   (define-pty ioctl (_fun

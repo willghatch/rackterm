@@ -4,6 +4,7 @@
 
 (require racket/class)
 (require racket/gui/base)
+(require racket/cmdline)
 (require "terminal.rkt")
 (require "terminal-canvas.rkt")
 
@@ -15,18 +16,41 @@
 
 (send frame show #t)
 
+(define font-size (make-parameter 12))
+(define font-name (make-parameter "DejaVu Sans Mono"))
+(define command (make-parameter #f))
+
+(define command-args
+  (command-line
+   #:final
+   [("-e" "--command") cmd
+    "Execute the given command as the shell."
+    (command cmd)]
+   #:once-each
+   [("--font-name") fnt
+    "Use the given font."
+    (font-name fnt)]
+   [("--font-size") size
+    "Use the given font size."
+    (font-size (string->number size))]
+   #:args args
+   args))
+
+(define command-and-args (if (command)
+                             (append (list (command)) command-args)
+                             (list (or (getenv "SHELL")
+                                       "/bin/sh")
+                                   "-i")))
 
 (define the-canvas
   (new terminal-canvas%
        [parent frame]
-       ;[font-size 10]
-
+       [font-size (font-size)]
        ;; How can I tell if a font name exists on a system?  If I give a bogus
        ;; font name, it falls back to some lame non-monospaced font that looks
        ;; terrible...
-       ;[font "Terminal"]
-
-       ;[command-and-args '("/usr/bin/zsh"  "-i")]
+       [font-name (font-name)]
+       [command-and-args command-and-args]
        ))
 
 ;(define b-canvas

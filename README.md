@@ -8,7 +8,8 @@ You can install from the racket package system by running `raco pkg install rack
 Run
 ---
 
-`racket -l rackterm/xterm`
+`racket -l rackterm/xterm --`
+or, if you have your racket/bin directory on your `$PATH`, run `rackterm-xterm`
 
 What is this?
 -------------

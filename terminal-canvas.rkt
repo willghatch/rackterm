@@ -40,9 +40,9 @@
     (define/public (get-font-size) font-size)
     (define/public (set-font-size! size) (set! font-size size))
 
-    (init-field [font "DejaVu Sans Mono"])
-    (define/public (get-font) font)
-    (define/public (set-font! f) (set! font f))
+    (init-field [font-name "DejaVu Sans Mono"])
+    (define/public (get-font-name) font-name)
+    (define/public (set-font-name! f) (set! font-name f))
 
     (define last-width 0)
     (define last-height 0)
@@ -68,7 +68,7 @@
     (define (set-dc-font dc style)
       (send dc set-font (send the-font-list find-or-create-font
                               (send this get-font-size)
-                              (send this get-font)
+                              (send this get-font-name)
                               'modern ; default, decorative, roman, script, swiss, modern, symbol, system
                               (if (style-italic style) 'italic 'normal) ; normal, italic, slant
                               (if (style-bold style) 'bold 'normal) ; normal, bold, light

@@ -18,5 +18,7 @@
 ;; So far it's the only program that runs differently
 (set-controlling-tty (scheme_get_port_file_descriptor (current-input-port)))
 
-(apply execvp args)
+(with-handlers ([(lambda (exn) #t)
+                 (lambda (exn) ((error-display-handler) (exn-message exn) exn))])
+  (apply execvp args))
 
