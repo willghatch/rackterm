@@ -22,10 +22,6 @@
 
 (define command-args
   (command-line
-   #:final
-   [("-e" "--command") cmd
-    "Execute the given command as the shell."
-    (command cmd)]
    #:once-each
    [("--font-name") fnt
     "Use the given font."
@@ -33,6 +29,9 @@
    [("--font-size") size
     "Use the given font size."
     (font-size (string->number size))]
+   [("-e" "--command") cmd
+    "Execute the given command as the shell."
+    (command cmd)]
    #:args args
    args))
 
