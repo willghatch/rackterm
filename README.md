@@ -21,7 +21,7 @@ It is a work in progress and is currently lacking many features which I hope to 
 TERM variable
 -------------
 
-The rackterm/xterm program runs the tic program on startup to load the rackterm terminfo definition.  It starts with `TERM=rackterm`
+The rackterm/xterm program runs the tic program on startup to load the rackterm terminfo definition.  It starts with `TERM=rackterm`.  This should work great.  Unless you ssh to another machine, in which case the new host will not have the definition.  You can either scp or otherwise copy the rackterm.terminfo file to the other machine and run `tic rackterm.terminfo` on it, or you can set `TERM=xterm`.  You will get fewer capabilities with `TERM=xterm`, like no italics, no extended color, etc, since programs won't know how to access those things, but you don't have to get the terminfo file onto all your machines that way.
 
 Fonts
 -----
