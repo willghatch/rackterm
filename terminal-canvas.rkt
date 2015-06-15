@@ -40,9 +40,30 @@
     (define/public (get-font-size) font-size)
     (define/public (set-font-size! size) (set! font-size size))
 
-    (init-field [font-name "DejaVu Sans Mono"])
+    (init-field [font-fallback-list
+                 '("DejaVu Sans Mono"
+                   "Ubuntu Mono"
+                   "Droid Sans Mono"
+                   "Liberation Mono"
+                   "Terminal"
+                   "Menlo"
+                   "Monaco"
+                   "Courier"
+                   "Courier New")])
+    (define/public (get-font-fallback-list) font-fallback-list)
+    (define/public (set-font-fallback-list fonts) (set! font-fallback-list fonts))
+    (define (get-first-available-font fonts)
+      (cond [(null? fonts) #f]
+            [(member (car fonts) (get-face-list)) (car fonts)]
+            [else (get-first-available-font (cdr fonts))]))
+
+    (init-field [font-name "use first fallback"])
     (define/public (get-font-name) font-name)
-    (define/public (set-font-name! f) (set! font-name f))
+    (define/public (set-font-name! f)
+      (set! font-name
+            (get-first-available-font (cons f font-fallback-list))))
+    ;; set the font explicitly to trigger fallback behavior
+    (send this set-font-name! (send this get-font-name))
 
     (define last-width 0)
     (define last-height 0)
@@ -178,6 +199,7 @@
             null)))
 
     (super-new)
+
     ;; start thread to listen for input from the subprocess
     (thread (terminal-input-listener terminal))
     ))

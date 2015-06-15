@@ -17,7 +17,7 @@
 (send frame show #t)
 
 (define font-size (make-parameter 12))
-(define font-name (make-parameter "DejaVu Sans Mono"))
+(define font-name (make-parameter "use first fallback"))
 (define command (make-parameter #f))
 
 (define command-args
