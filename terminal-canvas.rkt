@@ -130,7 +130,6 @@
         (when all?
           (send dc clear)
           (define-values (x-size y-size) (send (send this get-dc) get-size))
-          (printf "sizes: ~s ~s~n" x-size y-size)
           (set! last-bitmap (make-object bitmap% x-size y-size))
           (set! last-dc (make-object bitmap-dc% last-bitmap))
           (send last-dc set-background "black")
@@ -166,7 +165,6 @@
       (if (null? others)
           (exit 0)
           (send (car others) focus))
-      (printf "children: ~s~n" (send parent get-children))
       (send parent reflow-container)
       )
 
