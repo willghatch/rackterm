@@ -328,9 +328,11 @@
     [(#\D) (terminal-forward-lines term)]
     [(#\H) (terminal-set-tab-stop term)]
     ;; M should scroll up one line.  If at the top, it should remove the bottom line and insert one
-    [(#\M) (if (equal? 0 (terminal-get-row term))
-               (terminal-insert-lines-with-scrolling-region term 1)
-               (terminal-forward-lines term -1))]
+    [(#\M) (let* ((region (terminal-current-scrolling-region term))
+                  (beginning (if (pair? region) (car region) 0)))
+             (if (equal? beginning (terminal-get-row term))
+                 (terminal-scroll-region term -1)
+                 (terminal-forward-lines term -1)))]
     [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
     [(#\]) (set-terminal-current-char-handler! term new-osc-handler)]
 
