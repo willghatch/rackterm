@@ -8,23 +8,44 @@
    meta
    super
    hyper
+   shift
    ;; Some sort of configuration should tell the gui classes how to map mod1-5 to
    ;; meta, super, hyper...
    )
   #:transparent)
+
+(define (no-mods-key-event key)
+  (make-key-event key
+                  #f #f #f #f #f))
+
+(define key-symbols
+  '(backtab menu pause prior next end home left right up down escape print insert
+            numpad0 numpad1 numpad2 numpad3 numpad4 numpad5 numpad6 numpad7 numpad8 numpad9
+            numpad-enter multiply add subtract decimal divide
+            f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12
+            wheel-up wheel-down wheel-left wheel-right
+    ))
 
 (define (key . args)
   ;; convenience function to say eg. (key 'meta #\a)
   (define (mem x xs)
     ;; to standardize true values to #t
     (if (member x xs) #t #f))
+  (define (find-key-symbol syms)
+    (cond [(null? syms) #f]
+          [(member (car syms) key-symbols) (car syms)]
+          [else (find-key-symbol (cdr syms))]))
   (let* ((fchar (memf char? args))
-         (char (if fchar (car fchar) #f)))
-    (make-key-event char
+         (char (if fchar (car fchar) #f))
+         (ch-sym (if char char
+                     ;; if it's not a char, look for one of the special key symbols
+                     (find-key-symbol args))))
+    (make-key-event ch-sym
                     (mem 'control args)
                     (mem 'meta args)
                     (mem 'super args)
-                    (mem 'hyper args))))
+                    (mem 'hyper args)
+                    (mem 'shift args))))
 
 (define/contract (keys . args)
   ;; convenience to flatten key lists make with (key ...)
@@ -42,7 +63,8 @@
                                        key-event-control
                                        key-event-meta
                                        key-event-super
-                                       key-event-hyper)))
+                                       key-event-hyper
+                                       key-event-shift)))
                   (or (map func (list e1 e2)))))]))
 
 (define-struct key-tree

@@ -213,7 +213,7 @@
 
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
-        (if (char? key)
+        (if (not (equal? 'release key))
             (for ((char (handle-event-giving-terminal-codes event)))
               (when (char? char)
                 ;(printf "sending to subproc: ~s~n" char)
@@ -236,6 +236,8 @@
       (integer->char (bitwise-and 31 as-int))
       key))
 
+;; TODO this should be a parameter to be configured
+(define bindings-ignore-shift #t)
 (define (map-char-event-to-key-tree-event event)
   (let ((char (send event get-key-code))
         (C (send event get-control-down))
@@ -243,8 +245,13 @@
         (A (send event get-alt-down))
         ;; G for super
         (G (send event get-mod4-down))
+        (S (send event get-shift-down))
         (H #f))
-    (make-key-event char C (or M A) G H)))
+    (let ((SS (if (and bindings-ignore-shift (char? char)) #f S)))
+      (cond
+        ;; backtab is important for key binding
+        [(and (equal? char #\tab) S) (make-key-event 'backtab C (or M A) G H SS)]
+        [else (make-key-event char C (or M A) G H SS)]))))
 
 (define meta-term-prefix #\033)
 (define super-term-prefix #f)
@@ -256,14 +263,55 @@
         (sup (key-event-super key-ev))
         (hyp (key-event-hyper key-ev))
         (char (key-event-char key-ev)))
-  `(,@(if (and meta meta-term-prefix) (list meta-term-prefix) '())
-    ,@(if (and sup super-term-prefix) (list super-term-prefix) '())
-    ,@(if (and hyp hyper-term-prefix) (list hyper-term-prefix) '())
-    ,(if ctl (control-version char) char))))
+    (if (char? char)
+        `(,@(if (and meta meta-term-prefix) (list meta-term-prefix) '())
+          ,@(if (and sup super-term-prefix) (list super-term-prefix) '())
+          ,@(if (and hyp hyper-term-prefix) (list hyper-term-prefix) '())
+          ,(if ctl (control-version char) char))
+        '())))
 
 (define key-tree-terminal-code-map
   (keyhandler received-key-default-mapper
-              (key #\backspace) (lambda () (list #\rubout))
+              ;; these are the codes given by most terminals
+              (key 'escape) (lambda () "\e")
+              (key #\backspace) (lambda () (string #\rubout))
+              (key 'backtab) (lambda () "\e[Z")
+              (key 'wheel-up) (lambda () "\e[A")
+              (key 'wheel-down) (lambda () "\e[B")
+              (key 'up) (lambda () "\e[A")
+              (key 'down) (lambda () "\e[B")
+              (key 'left) (lambda () "\e[D")
+              (key 'right) (lambda () "\e[C")
+              (key 'home) (lambda () "\e[H")
+              (key 'end) (lambda () "\e[F")
+              (key 'prior) (lambda () "\e[5~")
+              (key 'next) (lambda () "\e[6~")
+              (key #\rubout) (lambda () "\e[3~")
+              (key 'insert) (lambda () "\e[2~")
+              (key 'f1) (lambda () "\eOP")
+              (key 'f2) (lambda () "\eOQ")
+              (key 'f3) (lambda () "\eOR")
+              (key 'f4) (lambda () "\eOS")
+              (key 'f5) (lambda () "\e15~")
+              (key 'f6) (lambda () "\e17~")
+              (key 'f7) (lambda () "\e18~")
+              (key 'f8) (lambda () "\e19~")
+              (key 'f9) (lambda () "\e20~")
+              (key 'f10) (lambda () "\e21~")
+              (key 'f11) (lambda () "\e23~")
+              (key 'f12) (lambda () "\e24~")
+              (key 'shift 'f1) (lambda () "\eO1;2P")
+              (key 'shift 'f2) (lambda () "\eO1;2Q")
+              (key 'shift 'f3) (lambda () "\eO1;2R")
+              (key 'shift 'f4) (lambda () "\eO1;2S")
+              (key 'shift 'f5) (lambda () "\e15;2~")
+              (key 'shift 'f6) (lambda () "\e17;2~")
+              (key 'shift 'f7) (lambda () "\e18;2~")
+              (key 'shift 'f8) (lambda () "\e19;2~")
+              (key 'shift 'f9) (lambda () "\e20;2~")
+              (key 'shift 'f10) (lambda () "\e21;2~")
+              (key 'shift 'f11) (lambda () "\e23;2~")
+              (key 'shift 'f12) (lambda () "\e24;2~")
               ))
 
 (define key-tree-command-map
