@@ -55,12 +55,16 @@
        [font-name (font-name)]
        [command-and-args command-and-args]
        [set-title-callback (lambda (title) (send frame set-label title))]
+       [horiz-margin 2]
+       [vert-margin 2]
        ))
 
 ;(define b-canvas
 ;  (new terminal-canvas%
 ;       [parent frame]
-;       [font "Terminal"]
+;       [font-name "Terminal"]
+;       [horiz-margin 2]
+;       [vert-margin 2]
 ;       ))
 
 ;; TODO -- use on-subwindow-char/on-subwindow-event to steal events to do stuff,

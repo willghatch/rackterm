@@ -203,6 +203,9 @@
               ;(printf "sending to subproc: ~s~n" char)
               (send-char-to-terminal-process terminal char))
             null)))
+    (define/override (on-event event)
+      (when (member (send event get-event-type) '(left-down right-down middle-down))
+        (send this focus)))
 
     (super-new)
 
