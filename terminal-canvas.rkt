@@ -3,6 +3,7 @@
 (require racket/gui/base
          racket/class)
 (require "terminal.rkt")
+(require "key-tree.rkt")
 
 (provide terminal-canvas%
          )
@@ -195,13 +196,27 @@
       (send parent reflow-container)
       )
 
+    (init-field [input-key-tree key-tree-command-map])
+    (define current-key-tree input-key-tree)
+
+    (define (handle-event-giving-terminal-codes event)
+      (let* ((k-ev (map-char-event-to-key-tree-event event))
+             (mapper (key-tree-get current-key-tree
+                                   (map-char-event-to-key-tree-event event)))
+             (chars (if (key-tree? mapper)
+                        (set! current-key-tree mapper)
+                        (begin
+                          (set! current-key-tree input-key-tree)
+                          (mapper k-ev)))))
+        (if (sequence? chars) chars '())))
 
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
         (if (char? key)
-            (for ((char (map-event-to-terminal-codes event)))
-              ;(printf "sending to subproc: ~s~n" char)
-              (send-char-to-terminal-process terminal char))
+            (for ((char (handle-event-giving-terminal-codes event)))
+              (when (char? char)
+                ;(printf "sending to subproc: ~s~n" char)
+                (send-char-to-terminal-process terminal char)))
             null)))
     (define/override (on-event event)
       (when (member (send event get-event-type) '(left-down right-down middle-down))
@@ -220,22 +235,38 @@
       (integer->char (bitwise-and 31 as-int))
       key))
 
-(define (map-event-to-terminal-codes event)
-  (let* ((key (send event get-key-code))
-         (ctl (send event get-control-down))
-         (meta (send event get-meta-down))
-         (alt (send event get-alt-down))
-         (m3 (send event get-mod3-down))
-         (m4 (send event get-mod4-down))
-         (m5 (send event get-mod5-down))
-         (key-with-ctl (if ctl (control-version key) key))
-         (key-backspace-hack (if (equal? key-with-ctl #\u08)
-                                 #\u7F
-                                 key-with-ctl))
-         )
-    ;; note, there is also a C+M=altr option here...
-    ;; some day I'll have some table lookup for extra values...
-    ;(printf "key: ~a, ctl: ~a, alt: ~a, meta: ~a" key ctl alt meta)
-    (if (or alt meta)
-        (list #\033 key-backspace-hack)
-        (list key-backspace-hack))))
+(define (map-char-event-to-key-tree-event event)
+  (let ((char (send event get-key-code))
+        (C (send event get-control-down))
+        (M (send event get-meta-down))
+        (A (send event get-alt-down))
+        ;; G for super
+        (G (send event get-mod4-down))
+        (H #f))
+    (make-key-event char C (or M A) G H)))
+
+(define meta-term-prefix #\033)
+(define super-term-prefix #f)
+(define hyper-term-prefix #f)
+
+(define (received-key-default-mapper key-ev)
+  (let ((meta (key-event-meta key-ev))
+        (ctl (key-event-control key-ev))
+        (sup (key-event-super key-ev))
+        (hyp (key-event-hyper key-ev))
+        (char (key-event-char key-ev)))
+  `(,@(if (and meta meta-term-prefix) (list meta-term-prefix) '())
+    ,@(if (and sup super-term-prefix) (list super-term-prefix) '())
+    ,@(if (and hyp hyper-term-prefix) (list hyper-term-prefix) '())
+    ,(if ctl (control-version char) char))))
+
+(define key-tree-terminal-code-map
+  (keyhandler received-key-default-mapper
+              (key #\backspace) (lambda () (list #\rubout))
+              ))
+
+(define key-tree-command-map
+  (keyhandler-with-fallback
+   key-tree-terminal-code-map
+   (key 'control #\C) (lambda () (printf "got C-shift-C~n"))
+   ))
