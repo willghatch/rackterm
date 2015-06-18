@@ -50,6 +50,7 @@
        ;; terrible...
        [font-name (font-name)]
        [command-and-args command-and-args]
+       [set-title-callback (lambda (title) (send frame set-label title))]
        ))
 
 ;(define b-canvas

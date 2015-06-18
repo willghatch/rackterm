@@ -36,6 +36,13 @@
 
     (define/public (get-terminal) terminal)
 
+    (init-field [set-title-callback void])
+    (define (set-parent-title)
+      (when (send this has-focus?)
+        (set-title-callback (terminal-title terminal))))
+    (define/override (on-focus)
+      (set-parent-title))
+
     (init-field [font-size 12])
     (define/public (get-font-size) font-size)
     (define/public (set-font-size! size) (set! font-size size))
@@ -114,6 +121,7 @@
 
     (define/override (on-paint)
       (send this set-label (terminal-title terminal))
+      (set-parent-title)
       (define dc (send this get-dc))
       ;; I need to keep track of the coordinates and only draw lines inside the max
       (define-values (x-size y-size) (send dc get-size))
