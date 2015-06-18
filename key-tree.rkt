@@ -71,12 +71,11 @@
               ;; key points to no table, change that.
               (hash-set tree e (kt-set (hash) (cdr key-event-list) callback))))))
   (let ((kt (key-tree-event-tree ktree))
-        (cb-aritized (at-least-one-aritize callback))
         (events (if (key-event? key-event-list)
                     (list key-event-list)
                     key-event-list)))
     (struct-copy key-tree ktree
-                 [event-tree (kt-set kt events cb-aritized)])))
+                 [event-tree (kt-set kt events callback)])))
 
 (define (key-tree-set* ktree . args)
   (cond [(null? args) ktree]
@@ -103,7 +102,7 @@
 
 (define (keyhandler default-handler . args)
   ;; makes a key tree, args are alternating key sequences and callbacks
-  (let ((ktree (empty-key-tree (at-least-one-aritize default-handler))))
+  (let ((ktree (empty-key-tree  default-handler)))
     (apply key-tree-set* (cons ktree args))))
 
 (define (keyhandler-with-fallback other-key-tree . args)

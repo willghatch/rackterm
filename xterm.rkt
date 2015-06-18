@@ -7,14 +7,12 @@
 (require racket/cmdline)
 (require "terminal.rkt")
 (require "terminal-canvas.rkt")
+(require "key-tree.rkt")
 
+;; to run tic
+(require racket/system)
+(require racket/runtime-path)
 
-(define frame (new frame%
-                   [label "racket xterm"]
-                   [width 800]
-                   [height 800]))
-
-(send frame show #t)
 
 (define font-size (make-parameter 12))
 (define font-name (make-parameter "use first fallback"))
@@ -45,37 +43,70 @@
                                        "/bin/sh")
                                    "-i")))
 
-(define the-canvas
-  (new terminal-canvas%
-       [parent frame]
-       [font-size (font-size)]
-       ;; How can I tell if a font name exists on a system?  If I give a bogus
-       ;; font name, it falls back to some lame non-monospaced font that looks
-       ;; terrible...
-       [font-name (font-name)]
-       [command-and-args command-and-args]
-       [set-title-callback (lambda (title) (send frame set-label title))]
-       [horiz-margin 2]
-       [vert-margin 2]
-       ))
+(define xterm-frame%
+  (class frame%
+    (init-field
+     [handling-key-tree
+      (keyhandler #f
+                  (key 'control #\G) (lambda () (send this add-canvas))
+                  (key 'control #\N) (lambda () (send this focus-next))
+                  )])
 
-;(define b-canvas
-;  (new terminal-canvas%
-;       [parent frame]
-;       [font-name "Terminal"]
-;       [horiz-margin 2]
-;       [vert-margin 2]
-;       ))
+    (define current-key-tree handling-key-tree)
+    (define/public (set-current-handler-tree ktree)
+      (set! current-key-tree ktree))
+    (define/override (on-subwindow-char receiver event)
+      (define key-ev (map-char-event-to-key-tree-event event))
+      (define handler (key-tree-get current-key-tree key-ev))
+      (cond [(key-tree? handler) (begin
+                                   (set! current-key-tree handler)
+                                   #t)]
+            ;; if the handler returns 'pass-through, let control pass through to the child
+            [handler (begin
+                       (set! current-key-tree handling-key-tree)
+                       (define ret ((at-least-one-aritize handler) key-ev))
+                       (if (equal? ret 'pass-through) #f #t))]
+            ;; if handler is #f but the handler-tree was not the default, eat the key (don't pass it)
+            [(not (equal? current-key-tree handling-key-tree)) #t]
+            ;; otherwise just let the kids handle it.
+            [else #f]))
 
-;; TODO -- use on-subwindow-char/on-subwindow-event to steal events to do stuff,
-;; eg. split window, do tab stuff, etc.
+    (define/public (add-canvas)
+      (let ((c (new terminal-canvas%
+                    [parent this]
+                    [font-size (font-size)]
+                    [font-name (font-name)]
+                    [command-and-args command-and-args]
+                    [set-title-callback (lambda (title) (send this set-label title))]
+                    [horiz-margin 2]
+                    [vert-margin 2]
+                    )))
+        (send c focus)
+        c))
+    (define/public (focus-next)
+      (let* ((children (send this get-children))
+             (focused-child (memf (lambda (c) (send c has-focus?)) children))
+             (next-child (if focused-child (cdr focused-child) #f)) 
+             (to-focus (if (or (null? next-child) (not next-child))
+                           (car children)
+                           (car next-child))))
+        (send to-focus focus)))
 
-;; Let's just run tic here and not have others worry about this terminfo crap.
-(require racket/system)
-(require racket/runtime-path)
-(define-runtime-path terminfo-file "rackterm.terminfo")
-(system (string-append "tic " (path->string terminfo-file)))
+    (super-new)))
 
 
-(send the-canvas focus)
+(module+ main
+  ;; Let's just run tic here and not have others worry about this terminfo crap.
+  (define-runtime-path terminfo-file "rackterm.terminfo")
+  (system (string-append "tic " (path->string terminfo-file)))
+
+  (define frame (new xterm-frame%
+                     [label "racket xterm"]
+                     [width 800]
+                     [height 800]
+                     ))
+
+  (send frame show #t)
+  (send frame add-canvas))
+
 

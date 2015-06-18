@@ -6,6 +6,7 @@
 (require "key-tree.rkt")
 
 (provide terminal-canvas%
+         map-char-event-to-key-tree-event
          )
 
 ;;; YARR!!! Here be the ugliest code in the whole project!  This file is a mess!
@@ -207,7 +208,7 @@
                         (set! current-key-tree mapper)
                         (begin
                           (set! current-key-tree input-key-tree)
-                          (mapper k-ev)))))
+                          ((at-least-one-aritize mapper) k-ev)))))
         (if (sequence? chars) chars '())))
 
     (define/override (on-char event)
