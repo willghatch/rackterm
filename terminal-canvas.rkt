@@ -39,7 +39,7 @@
     (define (set-parent-title)
       (when (send this has-focus?)
         (set-title-callback (terminal-title terminal))))
-    (define/override (on-focus)
+    (define/override (on-focus event)
       (set-parent-title))
 
     (init-field [font-size 12])
