@@ -21,18 +21,16 @@
 (define terminal-canvas%
   (class canvas%
     (init-field [command-and-args (list (or (getenv "SHELL") "/bin/sh") "-i")])
+    (init-field [term-var "rackterm"])
     (init-field [terminal
-                 (apply init-terminal
-                        (append
-                         (list (lambda ()
-                                 (send this refresh))
-                               (lambda ()
-                                 (send this handle-subproc-ended)))
-                         (if (null? command-and-args)
-                             (list (or (getenv "SHELL")
-                                       "/bin/sh")
-                                   "-i")
-                             command-and-args)))])
+                 (init-terminal (lambda () (send this refresh))
+                                (lambda () (send this handle-subproc-ended))
+                                (if (null? command-and-args)
+                                    (list (or (getenv "SHELL")
+                                              "/bin/sh")
+                                          "-i")
+                                    command-and-args)
+                                #:term-var term-var)])
 
     (define/public (get-terminal) terminal)
 

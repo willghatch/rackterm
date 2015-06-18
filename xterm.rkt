@@ -19,16 +19,20 @@
 (define font-size (make-parameter 12))
 (define font-name (make-parameter "use first fallback"))
 (define command (make-parameter #f))
+(define term-var (make-parameter "rackterm"))
 
 (define command-args
   (command-line
    #:once-each
-   [("--font-name") fnt
+   [("--font-name") fontname
     "Use the given font."
-    (font-name fnt)]
+    (font-name fontname)]
    [("--font-size") size
     "Use the given font size."
     (font-size (string->number size))]
+   [("--term-var") TERM
+    "override default TERM value of 'rackterm'."
+    (term-var TERM)]
    [("-e" "--command") cmd
     "Execute the given command as the shell."
     (command cmd)]
