@@ -26,7 +26,7 @@ The rackterm/xterm program runs the tic program on startup to load the rackterm 
 OS Support
 ----------
 
-Rackterm is known to work on GNU/Linux and MacOSX.  If installing a FreeBSD virtual machine and running anything on it weren't such a hassle, I would have tested it, but it should work as well.
+Rackterm is known to work on GNU/Linux, FreeBSD, and MacOSX.
 
 If it doesn't run on your system, open an issue at https://github.com/willghatch/rackterm and give any information you have.  For Unix, it will be a problem with FFI loading and shouldn't be hard to solve.  For Windows... well, I have no idea how terminals work on Windows, so good luck.
 
