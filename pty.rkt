@@ -4,7 +4,7 @@
 
 (require ffi/unsafe
          ffi/unsafe/define)
-(require racket/list racket/port racket/system)
+(require racket/list racket/port racket/system racket/string)
 
 (provide (all-defined-out))
 
@@ -22,7 +22,8 @@
 (define os-type (system-type 'os))
 (define uname-s (if (equal? os-type 'windows)
                     "windows"
-                    (with-output-to-string (lambda () (system "uname -s")))))
+                    (string-trim (with-output-to-string
+                                   (lambda () (system "uname -s"))))))
 (define freebsd-ioctls? (or (string-ci=? uname-s "FreeBSD")
                             (string-ci=? uname-s "Darwin")))
 ;; ioctl request parameters are ints in Linux, but longs in FreeBSD and MacOSX
