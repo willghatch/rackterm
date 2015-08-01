@@ -4,7 +4,7 @@
 
 (require ffi/unsafe
          ffi/unsafe/define)
-(require racket/list)
+(require racket/list racket/port racket/system)
 
 (provide (all-defined-out))
 
@@ -20,7 +20,11 @@
 (define TIOCNOTTY_freebsd #x20007471)
 
 (define os-type (system-type 'os))
-(define freebsd-ioctls? (equal? os-type 'macosx))
+(define uname-s (if (equal? os-type 'windows)
+                    "windows"
+                    (with-output-to-string (lambda () (system "uname -s")))))
+(define freebsd-ioctls? (or (string-ci=? uname-s "FreeBSD")
+                            (string-ci=? uname-s "Darwin")))
 ;; ioctl request parameters are ints in Linux, but longs in FreeBSD and MacOSX
 (define ioctl-req-type (if (or (equal? (system-type 'word) 64)
                                freebsd-ioctls?)
@@ -105,7 +109,7 @@
   (ioctl fd TIOCGWINSZ))
 
 
-(define-ffi-definer define-libc (ffi-lib "libc" '("6" #f)))
+(define-ffi-definer define-libc (ffi-lib "libc" '("7" "6" #f)))
 
 (define argv-array-len 100)
 
