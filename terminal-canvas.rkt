@@ -273,6 +273,7 @@
 (define key-tree-terminal-code-map
   (keyhandler received-key-default-mapper
               ;; these are the codes given by most terminals
+              ;; ... or maybe not.  Where ever I got these from was wrong.
               (key 'escape) (lambda () "\e")
               (key #\backspace) (lambda () (string #\rubout))
               (key 'backtab) (lambda () "\e[Z")
