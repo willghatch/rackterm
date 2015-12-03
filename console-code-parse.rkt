@@ -371,8 +371,8 @@ everything else.
 
    ;; set scrolling region
    #\r (lambda (char params lq?)
-         (values #f `(terminal-set-scrolling-region ,(sub1 (car-defaulted params 1))
-                                                    ,(sub1 (cadr-defaulted params 'end)))))
+         (values #f `(terminal-set-scrolling-region ,(car-defaulted params 1)
+                                                    ,(cadr-defaulted params 'end))))
 
    ;; s - save cursor location
    ;; u - restore cursor location

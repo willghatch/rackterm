@@ -205,7 +205,11 @@
     (terminal-line-break-at-cursor term))
   (terminal-insert-blank term cols))
 
-(define (terminal-set-scrolling-region term start end)
+(define (terminal-set-scrolling-region term start+1 end+1)
+  (define start (sub1 start+1))
+  (define end (if (equal? end+1 'end)
+                  (sub1 (terminal-current-height term))
+                  (sub1 end+1)))
   (if (and (equal? start 0)
            (equal? end (sub1 (terminal-current-height term))))
       (set-terminal-current-scrolling-region! term null)
