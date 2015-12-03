@@ -216,7 +216,7 @@
         (if (not (equal? 'release key))
             (for ((char (handle-event-giving-terminal-codes event)))
               (when (char? char)
-                ;(printf "sending to subproc: ~s~n" char)
+                ;(eprintf "sending to subproc: ~s~n" char)
                 (send-char-to-terminal-process terminal char)))
             null)))
     (define/override (on-event event)
@@ -318,5 +318,5 @@
 (define key-tree-command-map
   (keyhandler-with-fallback
    key-tree-terminal-code-map
-   (key 'control #\C) (lambda () (printf "got C-shift-C~n"))
+   (key 'control #\C) (lambda () (eprintf "got C-shift-C~n"))
    ))

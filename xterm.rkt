@@ -98,15 +98,22 @@
 (module+ main
   ;; Let's just run tic here and not have others worry about this terminfo crap.
   (define-runtime-path terminfo-file "rackterm.terminfo")
-  (system (string-append "tic " (path->string terminfo-file)))
 
-  (define frame (new xterm-frame%
-                     [label "racket xterm"]
-                     [width 800]
-                     [height 800]
-                     ))
+  (define (do-main)
+    ;; This is in a function because otherwise it prints stuff for being
+    ;; at the top level
+    (system (string-append "tic " (path->string terminfo-file)))
 
-  (send frame show #t)
-  (send frame add-canvas))
+    (define frame (new xterm-frame%
+                       [label "racket xterm"]
+                       [width 800]
+                       [height 800]
+                       ))
+
+    (send frame show #t)
+    (send frame add-canvas)
+    (void))
+
+  (do-main))
 
 

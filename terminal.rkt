@@ -168,7 +168,7 @@
              (was-already-beyond (and (not (equal? 0 beyond))
                                       (not (equal? (negative? to-move)
                                                    (negative? beyond))))))
-;        (printf "forward-n-lines ~a, cur ~a, region ~a, to-move ~a, to-scroll ~a, was-already-beyond ~a~n"
+;        (eprintf "forward-n-lines ~a, cur ~a, region ~a, to-move ~a, to-scroll ~a, was-already-beyond ~a~n"
 ;                n cur region to-move beyond was-already-beyond)
         (if was-already-beyond
             (-terminal-forward-lines term n)
@@ -291,7 +291,7 @@
 
 
 (define (terminal-overwrite-character term char)
-  ;(printf "writing character ~s~n" char)
+  ;(eprintf "writing character ~s~n" char)
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-input-listener term)
@@ -354,7 +354,7 @@
     (let ((func (car form))
           (args (rest form)))
       (case func
-        [(write-char) (tapply terminal-overwrite-character args)]
+        [(terminal-write-char) (tapply terminal-overwrite-character args)]
         [(begin) (for ([f args])
                    (terminal-interp term f))]
         [(terminal-forward-chars) (tapply terminal-forward-chars args)]
@@ -400,7 +400,7 @@
         [(terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
         [(terminal-set-scrolling-region) (tapply terminal-set-scrolling-region args)]
 
-        [else (printf "Ignoring form: ~a~n" form)]))
+        [else (eprintf "Ignoring form: ~a~n" form)]))
     ((terminal-redraw-callback term))
     ))
 
