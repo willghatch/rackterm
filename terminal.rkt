@@ -2,9 +2,11 @@
 (require racket/draw)
 (require racket/list)
 (require racket/stream)
+(require racket/block)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 (require "cell.rkt")
+(require "console-code-parse.rkt")
 
 ;; This is the main file for the terminal library.  It is to be wrapped by a program
 ;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
@@ -280,424 +282,29 @@
          (diff (row . - . relative-cur-row)))
     (terminal-forward-lines term diff #:scrollable? #f)))
 (define (terminal-go-to-row-column term row [column 0])
-  (terminal-go-to-row row)
-  (terminal-go-to-column column))
+  (terminal-go-to-row term row)
+  (terminal-go-to-column term column))
 
 
 (define (terminal-overwrite-character term char)
   ;(printf "writing character ~s~n" char)
   (terminal-overwrite term (terminal-make-cell term char)))
 
-(define (terminal-handle-character term char)
-  ;(printf "handling: ~s~n" char)
-  (define handler (terminal-current-char-handler term))
-  (with-handlers ([(λ (exn) #t) (λ (exn) ((error-display-handler) (exn-message exn) exn))])
-    (cond
-      [(not (null? handler)) (handler term char)]
-      [((char->integer char) . < . 32)
-       (handle-ascii-controls term char)]
-      [else
-       (terminal-overwrite-character term char)]))
-  ((terminal-redraw-callback term)))
-
 (define (terminal-input-listener term)
   (define (read-char-from-terminal-process term)
     (read-char (terminal-process-in term)))
   (lambda ()
-    (define (listener)
+    (define (listener p-state)
       (let ((char (read-char-from-terminal-process term)))
         (if (not (eof-object? char))
-            (begin (terminal-handle-character term char)
-                   (listener))
+            (block
+              (define-values (n-state output) (parse-char char #:parser-state p-state))
+              (terminal-interp term output)
+              (listener n-state))
             (void))))
     (sleep 0)
-    (listener)))
+    (listener #f)))
 
-(define (handle-ascii-controls term char)
-  (case char
-    [(#\u07) null] ;; BEEP!
-    [(#\u08) (terminal-forward-chars term -1)] ;; backspace
-    [(#\u09) (terminal-go-to-next-tab-stop term)]
-    [(#\newline #\u0B #\u0C) (terminal-forward-lines term)]
-    [(#\return) (terminal-go-to-column term 0)] ;; carriage return...
-    [(#\u0E) null] ;; activate G1 character set
-    [(#\u0F) null] ;; activate G0 character set
-    [(#\u1B) (set-terminal-current-char-handler! term escape-handler)] ;; start escape sequence
-    [(#\u9B) (set-terminal-current-char-handler! term new-csi-handler)]
-    [else (printf "ignored control char: ~s~n" char)]))
-
-(define (escape-handler term char)
-  ;; IE handling after receiving ESC character
-  (set-terminal-current-char-handler! term null)
-  (case char
-    [(#\D) (terminal-forward-lines term)]
-    [(#\H) (terminal-set-tab-stop term)]
-    ;; M should scroll up one line.  If at the top, it should remove the bottom line and insert one
-    [(#\M) (let* ((region (terminal-current-scrolling-region term))
-                  (beginning (if (pair? region) (car region) 0)))
-             (if (equal? beginning (terminal-get-row term))
-                 (terminal-scroll-region term -1)
-                 (terminal-forward-lines term -1)))]
-    [(#\[) (set-terminal-current-char-handler! term new-csi-handler)]
-    [(#\]) (set-terminal-current-char-handler! term new-osc-handler)]
-
-    ;; for setting 7 or 8 bit controls, ascii conformance...
-    [(#\space) (set-terminal-current-char-handler! term ignore-next-char)]
-
-    ;;; The rest are less important
-    [(#\#) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\%) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\+) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\-) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\*) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\/) (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\.) (set-terminal-current-char-handler! term ignore-next-char)]
-
-
-    ;; these paren ones have something to do with setting character sets
-    [(#\() (set-terminal-current-char-handler! term ignore-next-char)]
-    [(#\)) (set-terminal-current-char-handler! term ignore-next-char)]
-    [else (printf "ignored escaped character: ~s~n" char)]))
-
-(define (make-osc-handler numeric-arg)
-  ;; osc sequences are "ESC ] number ; <usually text> <ST - string terminator>
-  (lambda (term char)
-    (case char
-      [(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-       (set-terminal-current-char-handler!
-        term
-        (make-osc-handler (+ (* 10 numeric-arg)
-                             (read (open-input-string (string char))))))]
-      ;; the only other character should be the semicolon
-      [else (set-terminal-current-char-handler! term
-                                                (make-osc-text-handler numeric-arg "" #f))])))
-(define new-osc-handler (make-osc-handler 0))
-(define (make-osc-text-handler numeric-arg text previous-char)
-  (lambda (term char)
-    ;; the string terminator is ESC-\
-    ;; but xterm seems to support just #\u07 (ascii BELL)
-    (cond ((and (equal? char #\\)
-                (equal? previous-char #\u1B))
-           (osc-handler-finish term numeric-arg text))
-          ((equal? char #\u07)
-           (osc-handler-finish term numeric-arg (string-append text (string previous-char))))
-          (else (set-terminal-current-char-handler!
-                term
-                (let ((new-text (if previous-char
-                                    (string-append text (string previous-char))
-                                    "")))
-                  (make-osc-text-handler numeric-arg
-                                         new-text
-                                         char)))))))
-
-(define (osc-handler-finish term numeric-arg text)
-  (set-terminal-current-char-handler! term null)
-  (case numeric-arg
-    [(0 1 2) (set-terminal-title! term text)]
-    [(3) (void)] ; this should set X properties.
-    [else (void)])) ; aaaand some other stuff.
-
-(define (make-ignore-next-n-characters-handler n)
-  (lambda (term char)
-    (if (n . < . 2)
-        (set-terminal-current-char-handler! term null)
-        (set-terminal-current-char-handler!
-         term
-         (make-ignore-next-n-characters-handler (sub1 n))))))
-(define ignore-next-char (make-ignore-next-n-characters-handler 1))
-
-(define (make-csi-handler completed-params current-param leading-question?)
-  ;; CSI sequences start with 'ESC [', then possibly a question mark (which seems
-  ;; to only matter for setting/resetting modes with h/l, in which case it means
-  ;; "private mode"), then decimal number arguments separated by semicolons,
-  ;; until a final character that determines the function.
-  (lambda (term char)
-    (set-terminal-current-char-handler! term null)
-    (case char
-      [(#\;) (set-terminal-current-char-handler! term
-                                                 (make-csi-handler
-                                                  (append completed-params (list current-param))
-                                                  0
-                                                  leading-question?))]
-      [(#\?) (if (and (null? completed-params) (equal? current-param 0))
-                 (set-terminal-current-char-handler! term
-                                                     (make-csi-handler
-                                                      completed-params
-                                                      current-param
-                                                      #t))
-                 null)] ; I guess a question mark somewhere else just kills it...?
-      [(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-       (set-terminal-current-char-handler! term (make-csi-handler
-                                                 completed-params
-                                                 (+ (* 10 current-param)
-                                                    (read (open-input-string (string char))))
-                                                 leading-question?))]
-      [else
-       (let ((end-handler (hash-ref csi-table char (lambda ()
-                                                     (lambda (term char params lq?)
-                                                       (printf "ignored CSI terminator: ~a with params: ~a~n" char params)))))
-             (final-params (append completed-params (list current-param))))
-
-         (printf "handling CSI sequence ending in ~a.  Params: ~a lq?: ~a~n" char final-params leading-question?)
-         (end-handler term char final-params leading-question?))])))
-
-(define new-csi-handler (make-csi-handler '() 0 #f))
-
-(define (car-defaulted l default)
-  (if (or (null? l)
-          (equal? (car l) 0))
-      default
-      (car l)))
-(define (cadr-defaulted l default)
-  (cond
-    [(< (length l) 2) default]
-    [(equal? (cadr l) 0) default]
-    [else (cadr l)]))
-
-(define (handle-set-mode term char params private?)
-  ;; reset if l, set if h
-  (define on? (equal? char #\h))
-  (define (ignore)
-    (printf "ignoring mode set - on? ~a, private? ~a, params ~a~n"
-            on? private? params))
-  (define setting (car-defaulted params 0))
-  (if private?
-      (case setting
-        [(6) (set-terminal-margin-relative-addressing! on?)]
-        [(1049) (begin
-                  (set-terminal-current-alt-screen-state! term on?)
-                  (set-terminal-fun-terminal-alt! term the-empty-fun-terminal))]
-        [else (ignore)])
-      (case setting
-        [else (ignore)]))
-  ;; recurse to handle any more settings, because they can be set in groups
-  (if (null? (cdr params))
-      (void)
-      (handle-set-mode term char (cdr params) private?)))
-
-(define (color-csi-handler term char params lq?)
-  ;; TODO - check all the ones listed on the wikipedia page for ansi escape codes...
-  ;; there are a lot of obscure ones
-  ;; 24 bit color = CSI-38;2;r;g;bm for fg and 48 instead of 38 for bg
-  ;; for 256 color pallete, CSI-38;5;colorm
-  (set-terminal-current-char-handler! term null)
-  (define old-style (terminal-current-cell-style term))
-  (define (set-style-and-handle style)
-    (set-terminal-current-cell-style! term style)
-    (color-csi-handler term char (cdr params) lq?))
-  (define (fg color)
-    (set-style-and-handle (struct-copy
-                           style
-                           (terminal-current-cell-style term)
-                           [fg-color color])))
-  (define (bg color)
-    (set-style-and-handle (struct-copy
-                           style
-                           (terminal-current-cell-style term)
-                           [bg-color color])))
-  (if (null? params)
-      'done
-      (case (car params)
-        [(0) (set-style-and-handle default-style)]
-        [(1) (set-style-and-handle (struct-copy style old-style
-                                                [bold #t]))]
-        ;[(2) null]
-        [(3) (set-style-and-handle (struct-copy style old-style
-                                                [italic #t]))]
-        [(4) (set-style-and-handle (struct-copy style old-style
-                                                [underline #t]))]
-        [(5) (set-style-and-handle (struct-copy style old-style
-                                                [blink #t]))]
-        [(7) (set-style-and-handle (struct-copy style old-style
-                                                [reverse-video #t]))]
-        ;[(10) null]
-        ;[(11) null]
-        ;[(12) null]
-        ;[(21) null]
-        [(22) (set-style-and-handle (struct-copy style old-style
-                                                [bold #f]))]
-        [(23) (set-style-and-handle (struct-copy style old-style
-                                                [italic #f]))]
-        [(24) (set-style-and-handle (struct-copy style old-style
-                                                [underline #f]))]
-        [(25) (set-style-and-handle (struct-copy style old-style
-                                                [blink #f]))]
-        [(27) (set-style-and-handle (struct-copy style old-style
-                                                [reverse-video #f]))]
-        [(30) (fg 'black)]
-        [(31) (fg 'red)]
-        [(32) (fg 'green)]
-        [(33) (fg 'brown)]
-        [(34) (fg 'blue)]
-        [(35) (fg 'magenta)]
-        [(36) (fg 'cyan)]
-        [(37) (fg 'white)]
-        [(38) (extended-color-handler term char (cdr params) #t)]
-        [(39) (fg 'default-fg)]
-        [(40) (bg 'black)]
-        [(41) (bg 'red)]
-        [(42) (bg 'green)]
-        [(43) (bg 'brown)]
-        [(44) (bg 'blue)]
-        [(45) (bg 'magenta)]
-        [(46) (bg 'cyan)]
-        [(47) (bg 'white)]
-        [(48) (extended-color-handler term char (cdr params) #f)]
-        [(49) (bg 'default-bg)]
-        [else (color-csi-handler term char (cdr params) lq?)])))
-
-(define (extended-color-handler term char params fg?)
-  (define (bg color)
-    (set-terminal-current-cell-style!
-     term
-     (struct-copy style (terminal-current-cell-style term)
-                  [bg-color color])))
-  (define (fg color)
-    (set-terminal-current-cell-style!
-     term
-     (struct-copy style (terminal-current-cell-style term)
-                  [fg-color color])))
-  (define setc (if fg? fg bg))
-  (cond
-    [(null? params) 'done]
-    [(equal? (car params) 2)
-     (if (< (length params) 4)
-         null
-         (begin
-           (setc (make-color (second params) (third params) (fourth params)))
-           (color-csi-handler term char (list-tail params 4) #f)))]
-    [(equal? (car params) 5)
-     (if (< (length params) 2)
-         null
-         (begin
-           (setc (second params))
-           (color-csi-handler term char (list-tail params 2) #f)))]
-    [else (color-csi-handler term char (cdr params) #f)]))
-
-(define csi-table
-  (hash
-   ;; insert blanks
-   #\@ (lambda (term char params lq?)
-         (let ((n (car-defaulted params 1)))
-           (terminal-insert-blank term n #t)))
-
-   ;; forward lines
-   #\A (lambda (term char params lq?)
-         (terminal-forward-lines term (- (car-defaulted params 1))))
-   #\B (lambda (term char params lq?)
-         (terminal-forward-lines term (car-defaulted params 1)))
-
-   ;; forward chars
-   #\C (lambda (term char params lq?)
-         (terminal-forward-chars term (car-defaulted params 1)))
-   #\D (lambda (term char params lq?)
-         (terminal-forward-chars term (- (car-defaulted params 1))))
-
-   ;; forward lines to column 0
-   #\E (lambda (term char params lq?)
-         (terminal-go-to-column term 0)
-         (terminal-forward-lines term (car-defaulted params 1)))
-   #\F (lambda (term char params lq?)
-         (terminal-go-to-column term 0)
-         (terminal-forward-lines term (- (car-defaulted params 1))))
-
-   ;; go to address directly
-   #\G (lambda (term char params lq?)
-         (terminal-go-to-column term (sub1 (car-defaulted params 1))))
-   #\H (lambda (term char params lq?)
-         (terminal-go-to-row term (sub1 (car-defaulted params 1)))
-         (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
-
-   ;; clear screen
-   #\J (lambda (term char params lq?)
-         (let ((n (car params)))
-           (case n
-             ;; 3 is supposed to clear including the scrollback buffer in the Linux
-             ;;   terminal, but I don't think I care for that feature.
-             [(2) (begin
-                    (terminal-clear-from-start-to-cursor term)
-                    (terminal-clear-from-cursor-to-end term))]
-             [(1) (terminal-clear-from-start-to-cursor term)]
-             ;; 0
-             [else (terminal-clear-from-cursor-to-end term)])))
-
-   ;; clear line
-   #\K (lambda (term char params lq?)
-         (let ((n (car params)))
-           (case n
-             [(2) (terminal-clear-current-line term)]
-             [(1) (terminal-clear-from-start-of-line-to-cursor)]
-             ;; 0
-             [else (terminal-delete-to-end-of-line term)])))
-
-   ;; L - insert n blank lines
-   #\L (lambda (term char params lq?)
-         (terminal-insert-lines-with-scrolling-region term (car-defaulted params 1)))
-   ;; M - delete n lines
-   #\M (lambda (term char params lq?)
-         (terminal-delete-lines-with-scrolling-region term (car-defaulted params 1)))
-   ;; P - delete n characters on current line -- meaning characters shift left
-   #\P (lambda (term char params lq?)
-         (terminal-delete-forward-at-cursor term (car-defaulted params 1)))
-   ;; S scroll up n lines
-   #\S (lambda (term char params lq?)
-         (terminal-scroll-region term (car-defaulted params 1)))
-   ;; T scroll down n lines
-   #\T (lambda (term char params lq?)
-         (terminal-scroll-region term (- (car-defaulted params 1))))
-   ;; X - erase n characters on current line -- meaning characters are replaced with spaces
-   #\X (lambda (term char params lq?)
-         (let ((n (car-defaulted params 1)))
-           (terminal-delete-forward-at-cursor term n)
-           (terminal-insert-blank term n)))
-
-   ;; Half of these are duplicates. Stupid.
-   ;; Forward chars
-   #\a (lambda (term char params lq?)
-         (terminal-forward-chars term (car-defaulted params 1)))
-   ;; b... I don't see a spec for it
-   ;; c -- some sort of terminal identification...
-
-   #\d (lambda (term char params lq?)
-         (terminal-go-to-row term (sub1 (car-defaulted params 1))))
-   #\e (lambda (term char params lq?)
-         (terminal-forward-lines term (car-defaulted params 1)))
-   #\f (lambda (term char params lq?)
-         (terminal-go-to-row term (sub1 (car-defaulted params 1)))
-         (terminal-go-to-column term (sub1 (cadr-defaulted params 1))))
-
-   ;; g - 0 - clear tab stop at current position
-   ;;     3 - delete all tab stops
-   #\g (lambda (term char params lq?)
-         (let ((arg (car-defaulted params 1)))
-           (if (equal? arg 3)
-               (terminal-remove-all-tab-stops term)
-               (terminal-remove-tab-stop term))))
-
-   ;; h - set mode
-   ;; l - reset mode
-   #\h handle-set-mode
-   #\l handle-set-mode
-
-
-   #\m color-csi-handler
-
-   ;; n - status report
-   ;; q - keyboard LEDs
-
-   ;; set scrolling region
-   #\r (lambda (term char params lq?)
-         (let ((start (sub1 (car-defaulted params 1)))
-               (end (sub1 (cadr-defaulted params (terminal-current-height term)))))
-           (terminal-set-scrolling-region term start end)))
-
-   ;; s - save cursor location
-   ;; u - restore cursor location
-
-
-   #\` (lambda (term char params lq?)
-         (terminal-go-to-column term (sub1 (car-defaulted params 1))))
-   ))
 
 (define (set-term-color! term fg? . color-args)
   (let* ([color (cond [(equal? 3 (length color-args)) (apply make-color color-args)]
@@ -737,55 +344,61 @@
                      [reverse-video set?])))
 
 (define (terminal-interp term form)
-  (define (tapply f . args) (apply f (cons term args)))
+    (println form)
+  (define (tapply f args)
+    (apply f (cons term args)))
   (unless (null? form)
     (let ((func (car form))
           (args (rest form)))
+      (begin)
       (case (car form)
-        [('begin) (for ([f args])
-                    (terminal-interp term f))]
-        [('terminal-forward-chars) (tapply terminal-forward-chars args)]
-        [('terminal-forward-lines) (tapply terminal-forward-lines args)]
-        [('terminal-forward-lines-column-0) (begin (terminal-go-to-column 0)
-                                                   (tapply terminal-forward-lines args))]
-        [('terminal-go-to-column) (tapply terminal-go-to-column args)]
-        [('terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
-        [('terminal-do-esc-M) (let* ((region (terminal-current-scrolling-region term))
-                                     (beginning (if (pair? region) (car region) 0)))
-                                (if (equal? beginning (terminal-get-row term))
-                                    (terminal-scroll-region term -1)
-                                    (terminal-forward-lines term -1)))]
-        [('terminal-set-tab-stop) (tapply terminal-set-tab-stop args)]
-        [('terminal-set-title!) (tapply set-terminal-title! args)]
-        [('set-terminal-margin-relative-addressing!) (apply set-terminal-margin-relative-addressing! args)]
-        [('set-terminal-current-alt-screen-state!) (apply set-terminal-current-alt-screen-state! args)]
-        [('set-style-default!) (set-terminal-current-cell-style! default-style)]
-        [('set-style-fg-color!) (apply set-term-color! `(,term #t ,@args) )]
-        [('set-style-bg-color!) (apply set-term-color! `(,term #f ,@args) )]
-        [('set-style-bold!) (tapply set-term-bold! args)]
-        [('set-style-italic!) (tapply set-term-italic! args)]
-        [('set-style-underline!) (tapply set-term-underline! args)]
-        [('set-style-blink!) (tapply set-term-blink! args)]
-        [('set-style-reverse-video!) (tapply set-term-reverse-video! args)]
-        [('insert-blanks) (tapply terminal-insert-blank args)]
-        [('terminal-clear) (begin (terminal-clear-from-start-to-cursor term)
-                                  (terminal-clear-from-cursor-to-end term))]
-        [('terminal-clear-from-start-to-cursor) (terminal-clear-from-start-to-cursor term)]
-        [('terminal-clear-from-cursor-to-end) (terminal-clear-from-cursor-to-end term)]
-        [('terminal-clear-current-line) (terminal-clear-current-line term)]
-        [('terminal-clear-from-start-of-line-to-cursor) (terminal-clear-from-start-of-line-to-cursor term)]
-        [('terminal-delete-to-end-of-line) (terminal-delete-to-end-of-line term)]
-        [('terminal-insert-lines-with-scrolling-region) (tapply terminal-insert-lines-with-scrolling-region args)]
-        [('terminal-delete-lines-with-scrolling-region) (tapply terminal-delete-lines-with-scrolling-region args)]
-        [('terminal-delete-forward-at-cursor) (tapply terminal-delete-forward-at-cursor args)]
-        [('terminal-scroll-region) (tapply terminal-scroll-region args)]
-        [('terminal-replace-chars-with-space) (begin
-                                                (tapply terminal-delete-forward-at-cursor args)
-                                                (tapply terminal-insert-blank args))]
-        [('terminal-remove-all-tab-stops) (terminal-remove-all-tab-stops term)]
-        [('terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
-        [('terminal-set-scrolling-region) (terminal-set-scrolling-region term)]
+        [(write-char) (tapply terminal-overwrite-character args)]
+        [(begin) (for ([f args])
+                   (terminal-interp term f))]
+        [(terminal-forward-chars) (tapply terminal-forward-chars args)]
+        [(terminal-forward-lines) (tapply terminal-forward-lines args)]
+        [(terminal-forward-lines-column-0) (begin (terminal-go-to-column 0)
+                                                  (tapply terminal-forward-lines args))]
+        [(terminal-go-to-column) (tapply terminal-go-to-column args)]
+        [(terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
+        [(terminal-do-esc-M) (let* ((region (terminal-current-scrolling-region term))
+                                    (beginning (if (pair? region) (car region) 0)))
+                               (if (equal? beginning (terminal-get-row term))
+                                   (terminal-scroll-region term -1)
+                                   (terminal-forward-lines term -1)))]
+        [(terminal-set-tab-stop) (tapply terminal-set-tab-stop args)]
+        [(terminal-set-title!) (tapply set-terminal-title! args)]
+        [(set-terminal-margin-relative-addressing!) (apply set-terminal-margin-relative-addressing! args)]
+        [(set-terminal-current-alt-screen-state!) (tapply set-terminal-current-alt-screen-state! args)]
+        [(set-style-default!) (set-terminal-current-cell-style! term default-style)]
+        [(set-style-fg-color!) (apply set-term-color! `(,term #t ,@args) )]
+        [(set-style-bg-color!) (apply set-term-color! `(,term #f ,@args) )]
+        [(set-style-bold!) (tapply set-term-bold! args)]
+        [(set-style-italic!) (tapply set-term-italic! args)]
+        [(set-style-underline!) (tapply set-term-underline! args)]
+        [(set-style-blink!) (tapply set-term-blink! args)]
+        [(set-style-reverse-video!) (tapply set-term-reverse-video! args)]
+        [(insert-blanks) (tapply terminal-insert-blank args)]
+        [(terminal-clear) (begin (terminal-clear-from-start-to-cursor term)
+                                 (terminal-clear-from-cursor-to-end term))]
+        [(terminal-clear-from-start-to-cursor) (terminal-clear-from-start-to-cursor term)]
+        [(terminal-clear-from-cursor-to-end) (terminal-clear-from-cursor-to-end term)]
+        [(terminal-clear-current-line) (terminal-clear-current-line term)]
+        [(terminal-clear-from-start-of-line-to-cursor) (terminal-clear-from-start-of-line-to-cursor term)]
+        [(terminal-delete-to-end-of-line) (terminal-delete-to-end-of-line term)]
+        [(terminal-insert-lines-with-scrolling-region) (tapply terminal-insert-lines-with-scrolling-region args)]
+        [(terminal-delete-lines-with-scrolling-region) (tapply terminal-delete-lines-with-scrolling-region args)]
+        [(terminal-delete-forward-at-cursor) (tapply terminal-delete-forward-at-cursor args)]
+        [(terminal-scroll-region) (tapply terminal-scroll-region args)]
+        [(terminal-replace-chars-with-space) (begin
+                                               (tapply terminal-delete-forward-at-cursor args)
+                                               (tapply terminal-insert-blank args))]
+        [(terminal-remove-all-tab-stops) (terminal-remove-all-tab-stops term)]
+        [(terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
+        [(terminal-set-scrolling-region) (tapply terminal-set-scrolling-region args)]
 
-        [else (println form)]))))
+        [else (println form)]))
+    ((terminal-redraw-callback term))
+    ))
 
 

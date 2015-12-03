@@ -43,7 +43,7 @@ everything else.
     [(#\u08) (values #f '(terminal-forward-chars -1))] ;; backspace
     [(#\u09) (values #f '(terminal-go-to-next-tab-stop 1))]
     [(#\newline #\u0B #\u0C) (values #f '(terminal-forward-lines 1))]
-    [(#\return) (values #f '(terminal-go-to-column 1))] ;; carriage return...
+    [(#\return) (values #f '(terminal-go-to-column 0))] ;; carriage return...
     [(#\u0E) (values #f '(activate-g1-character-set))] ;; activate G1 character set
     [(#\u0F) (values #f '(activate-g0-character-set))] ;; activate G0 character set
     [(#\u1B) (values escape-handler '())] ;; start escape sequence
@@ -176,7 +176,7 @@ everything else.
       (block
         (define on? (equal? char #\h))
         (define (recur o-s-f)
-          (handle-set-mode char params (cons o-s-f output-so-far)))
+          (handle-set-mode char (cdr params) private? (cons o-s-f output-so-far)))
         (define setting (car-defaulted params 0))
         (define (mk-ignore)
           `(unknown-mode-set ,setting ,private? ,on?))
