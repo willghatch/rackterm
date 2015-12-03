@@ -57,7 +57,7 @@ everything else.
     [(#\H) (values #f '(terminal-set-tab-stop))]
     ;; M should scroll up one line.  If at the top, it should remove the bottom line and insert one
     ;; TODO - check if this was the same as what I'm calling cursor-move-line or different (IE some weird scroll-region stuff might be here but I don't remember...)
-    [(#\M) (values #f '(terminal-forward-lines -1))]
+    [(#\M) (values #f '(terminal-do-esc-M))]
     [(#\[) (values new-csi-handler '())]
     [(#\]) (values new-osc-handler '())]
 
@@ -270,27 +270,27 @@ everything else.
 
    ;; forward lines
    #\A (lambda (char params lq?)
-         (values #f `(forward-lines ,(- (car-defaulted params 1)))))
+         (values #f `(terminal-forward-lines ,(- (car-defaulted params 1)))))
    #\B (lambda (char params lq?)
-         (values #f `(forward-lines ,(car-defaulted params 1))))
+         (values #f `(terminal-forward-lines ,(car-defaulted params 1))))
 
    ;; forward chars
    #\C (lambda (char params lq?)
-         (values #f `(forward-chars ,(car-defaulted params 1))))
+         (values #f `(terminal-forward-chars ,(car-defaulted params 1))))
    #\D (lambda (char params lq?)
-         (values #f `(forward-chars ,(- (car-defaulted params 1)))))
+         (values #f `(terminal-forward-chars ,(- (car-defaulted params 1)))))
 
    ;; forward lines to column 0
    #\E (lambda (char params lq?)
-         (values #f `(forward-lines-column-0 ,(car-defaulted params 1))))
+         (values #f `(terminal-forward-lines-column-0 ,(car-defaulted params 1))))
    #\F (lambda (char params lq?)
-         (values #f `(forward-lines-column-0 ,(- (car-defaulted params 1)))))
+         (values #f `(terminal-forward-lines-column-0 ,(- (car-defaulted params 1)))))
 
    ;; go to address directly
    #\G (lambda (char params lq?)
-         (values #f `(go-to-column ,(sub1 (car-defaulted params 1)))))
+         (values #f `(terminal-go-to-column ,(sub1 (car-defaulted params 1)))))
    #\H (lambda (char params lq?)
-         (values #f `(go-to-row-column ,(sub1 (car-defaulted params 1))
+         (values #f `(terminal-go-to-row-column ,(sub1 (car-defaulted params 1))
                                        ,(sub1 (cadr-defaulted params 1)))))
 
    ;; clear screen
@@ -344,7 +344,7 @@ everything else.
    #\e (lambda (char params lq?)
          (values #f `(terminal-forward-lines ,(car-defaulted params 1))))
    #\f (lambda (char params lq?)
-         (values #f `(go-to-row-column ,(sub1 (car-defaulted params 1))
+         (values #f `(terminal-go-to-row-column ,(sub1 (car-defaulted params 1))
                                        ,(sub1 (cadr-defaulted params 1)))))
 
    ;; g - 0 - clear tab stop at current position

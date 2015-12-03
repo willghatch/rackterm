@@ -279,6 +279,9 @@
                                cur-row))
          (diff (row . - . relative-cur-row)))
     (terminal-forward-lines term diff #:scrollable? #f)))
+(define (terminal-go-to-row-column term row [column 0])
+  (terminal-go-to-row row)
+  (terminal-go-to-column column))
 
 
 (define (terminal-overwrite-character term char)
@@ -695,4 +698,94 @@
    #\` (lambda (term char params lq?)
          (terminal-go-to-column term (sub1 (car-defaulted params 1))))
    ))
+
+(define (set-term-color! term fg? . color-args)
+  (let* ([color (cond [(equal? 3 (length color-args)) (apply make-color color-args)]
+                      [else (car color-args)])]
+         [cur-style (terminal-current-cell-style term)]
+         [fg (if fg? color (style-fg-color cur-style))]
+         [bg (if fg? (style-bg-color cur-style) color)])
+    (set-terminal-current-cell-style!
+     term
+     (struct-copy style cur-style [fg-color fg] [bg-color bg]))))
+
+;;;; TODO - macro instead of copy/paste
+(define (set-term-bold! term set?)
+  (set-terminal-current-cell-style!
+   term (struct-copy style
+                     (terminal-current-cell-style term)
+                     [bold set?])))
+(define (set-term-italic! term set?)
+  (set-terminal-current-cell-style!
+   term (struct-copy style
+                     (terminal-current-cell-style term)
+                     [italic set?])))
+(define (set-term-underline! term set?)
+  (set-terminal-current-cell-style!
+   term (struct-copy style
+                     (terminal-current-cell-style term)
+                     [underline set?])))
+(define (set-term-blink! term set?)
+  (set-terminal-current-cell-style!
+   term (struct-copy style
+                     (terminal-current-cell-style term)
+                     [blink set?])))
+(define (set-term-reverse-video! term set?)
+  (set-terminal-current-cell-style!
+   term (struct-copy style
+                     (terminal-current-cell-style term)
+                     [reverse-video set?])))
+
+(define (terminal-interp term form)
+  (define (tapply f . args) (apply f (cons term args)))
+  (unless (null? form)
+    (let ((func (car form))
+          (args (rest form)))
+      (case (car form)
+        [('begin) (for ([f args])
+                    (terminal-interp term f))]
+        [('terminal-forward-chars) (tapply terminal-forward-chars args)]
+        [('terminal-forward-lines) (tapply terminal-forward-lines args)]
+        [('terminal-forward-lines-column-0) (begin (terminal-go-to-column 0)
+                                                   (tapply terminal-forward-lines args))]
+        [('terminal-go-to-column) (tapply terminal-go-to-column args)]
+        [('terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
+        [('terminal-do-esc-M) (let* ((region (terminal-current-scrolling-region term))
+                                     (beginning (if (pair? region) (car region) 0)))
+                                (if (equal? beginning (terminal-get-row term))
+                                    (terminal-scroll-region term -1)
+                                    (terminal-forward-lines term -1)))]
+        [('terminal-set-tab-stop) (tapply terminal-set-tab-stop args)]
+        [('terminal-set-title!) (tapply set-terminal-title! args)]
+        [('set-terminal-margin-relative-addressing!) (apply set-terminal-margin-relative-addressing! args)]
+        [('set-terminal-current-alt-screen-state!) (apply set-terminal-current-alt-screen-state! args)]
+        [('set-style-default!) (set-terminal-current-cell-style! default-style)]
+        [('set-style-fg-color!) (apply set-term-color! `(,term #t ,@args) )]
+        [('set-style-bg-color!) (apply set-term-color! `(,term #f ,@args) )]
+        [('set-style-bold!) (tapply set-term-bold! args)]
+        [('set-style-italic!) (tapply set-term-italic! args)]
+        [('set-style-underline!) (tapply set-term-underline! args)]
+        [('set-style-blink!) (tapply set-term-blink! args)]
+        [('set-style-reverse-video!) (tapply set-term-reverse-video! args)]
+        [('insert-blanks) (tapply terminal-insert-blank args)]
+        [('terminal-clear) (begin (terminal-clear-from-start-to-cursor term)
+                                  (terminal-clear-from-cursor-to-end term))]
+        [('terminal-clear-from-start-to-cursor) (terminal-clear-from-start-to-cursor term)]
+        [('terminal-clear-from-cursor-to-end) (terminal-clear-from-cursor-to-end term)]
+        [('terminal-clear-current-line) (terminal-clear-current-line term)]
+        [('terminal-clear-from-start-of-line-to-cursor) (terminal-clear-from-start-of-line-to-cursor term)]
+        [('terminal-delete-to-end-of-line) (terminal-delete-to-end-of-line term)]
+        [('terminal-insert-lines-with-scrolling-region) (tapply terminal-insert-lines-with-scrolling-region args)]
+        [('terminal-delete-lines-with-scrolling-region) (tapply terminal-delete-lines-with-scrolling-region args)]
+        [('terminal-delete-forward-at-cursor) (tapply terminal-delete-forward-at-cursor args)]
+        [('terminal-scroll-region) (tapply terminal-scroll-region args)]
+        [('terminal-replace-chars-with-space) (begin
+                                                (tapply terminal-delete-forward-at-cursor args)
+                                                (tapply terminal-insert-blank args))]
+        [('terminal-remove-all-tab-stops) (terminal-remove-all-tab-stops term)]
+        [('terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
+        [('terminal-set-scrolling-region) (terminal-set-scrolling-region term)]
+
+        [else (println form)]))))
+
 
