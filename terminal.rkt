@@ -348,14 +348,12 @@
                      [reverse-video set?])))
 
 (define (terminal-interp term form)
-    (println form)
   (define (tapply f args)
     (apply f (cons term args)))
   (unless (null? form)
     (let ((func (car form))
           (args (rest form)))
-      (begin)
-      (case (car form)
+      (case func
         [(write-char) (tapply terminal-overwrite-character args)]
         [(begin) (for ([f args])
                    (terminal-interp term f))]
@@ -363,6 +361,7 @@
         [(terminal-forward-lines) (tapply terminal-forward-lines args)]
         [(terminal-forward-lines-column-0) (begin (terminal-go-to-column 0)
                                                   (tapply terminal-forward-lines args))]
+        [(terminal-go-to-row) (tapply terminal-go-to-row args)]
         [(terminal-go-to-column) (tapply terminal-go-to-column args)]
         [(terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
         [(terminal-do-esc-M) (let* ((region (terminal-current-scrolling-region term))
@@ -401,7 +400,7 @@
         [(terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
         [(terminal-set-scrolling-region) (tapply terminal-set-scrolling-region args)]
 
-        [else (println form)]))
+        [else (printf "Ignoring form: ~a~n" form)]))
     ((terminal-redraw-callback term))
     ))
 
