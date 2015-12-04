@@ -29,6 +29,7 @@
 ;; - The spec uses 1 based cell addressing -- IE 1,1 is the origin at the top left corner.
 ;;   I dislike 1 based indexing, so internally I use 0 based indexing.  Things are
 ;;   translated at the control sequence handling.
+;; TODO - use 1-based indexing for rows and columns, since that's what the standard uses.  Translating was a bad idea.
 
 (define-struct terminal
   (fun-terminal-norm
@@ -348,6 +349,12 @@
                      [reverse-video set?])))
 
 (define (terminal-interp term form)
+  ;; TODO -- I plan on defining a namespace where these function names in
+  ;; the case statements (or whatever I standardize them as) are defined,
+  ;; and then simply using `eval` with that namespace and the forms I get.
+  ;; This should also allow expansion to add basic scheme forms, and various
+  ;; new terminal-related primitives (including maybe drawing pictures) for a
+  ;; terminal DSL.
   (define (tapply f args)
     (apply f (cons term args)))
   (unless (null? form)

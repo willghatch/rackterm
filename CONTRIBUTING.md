@@ -1,5 +1,5 @@
 
-I have big plans for this terminal emulator, but probably will not have a lot of time to work on it.  I want to lay out my ideas here so that potential contributors can understand where I intend the project to go, and so that I don't forget it myself.  Feedback on these plans are welcome and encouraged - I would like to know other people's thoughts.  I don't want to make a terminal emulator to just do what is already done, and I don't do everything in the terminal because I'm old-fashioned or some sort of luddite.  I use terminals because it can be a much more powerful and efficient way of interacting with a computer than pointing around with the rat and clicking on the few options that can be visually displayed.  I want to move away from a lot of the historical baggage of terminal emulators and their use that have grown since the 60s or 70s.  So feel free to contribute ideas or code if you are a like-minded terminal lover.
+I have big plans for this terminal emulator, but probably will not have a lot of time to work on it.  I want to lay out my ideas here so that I'll remember them and so that potential contributors can understand where I intend the project to go.  Feedback on these plans are welcome and encouraged - I would like to know other people's thoughts.  I don't want to make a terminal emulator to just do what is already done, and I don't do everything in the terminal because I'm old-fashioned or some sort of luddite.  I use terminals because it can be a much more powerful and efficient way of interacting with a computer than pointing around with the rat and clicking on the few options that can be visually displayed.  I want to move away from a lot of the historical baggage of terminal emulators and their use that have grown since the 60s or 70s.  So feel free to contribute ideas or code if you are a like-minded terminal lover.
 
 By the way, if you contribute code, it's currently somewhat a mess -- the rationale for actually starting this was to learn racket, and a bunch of the code is really gross as I threw it together as fast as I could while learning how to make things work.
 
@@ -22,8 +22,24 @@ Plans
 * Since I want configuration to be in full racket, but many people like simple, weak configuration, perhaps it could load configuration in multiple formats, or there could be a #lang rackterm-config which would make it easy.  The configuration could be loaded with some dynamic-require or perhaps xmonad-style by wrapping the original code with the configuration to make a new executable.
 * And, of course, I want all the expected terminal features that I don't have yet -- scrollback, mouse support, copy/paste with display server, etc.
 * And I'd like to have some sort of mode to, say, rather than spawning the child process itself and handling things the Unix way, it might be good to have it be able to connect to an actual serial input, or be an ssh terminal (eg. in place of putty on Windows), so I should add support for that at some point.
+* I'd like it to not be super slow like it is now... though as long as it's "good enough" efficiency will probably be a secondary concern for me.
 
-Other thoughts
---------------
+Code Layout
+===========
 
-I also would like to make a better shell -- I want better, more useful, and more helpful interactive use, primarily.  Also it would be nice if it scaled up to useful programming better than the bourne derived shells.  This would be a huge project which I will likely never actually get around to, but thinking of some features I would like in the shell was part of the motivation to start working on a new terminal emulator with more features.  Some people are trying to put a bunch of intelligence into terminal emulators to know about the commands used in them and parse their output to add extra functionality.  I think that won't scale, and is really a dead end.  I think that "intelligence" needs to go into the programs themselves (such as a better, more helpful shell), but the terminal emulator needs more ways to display things -- more styles of displaying text, the ability to display some pictures, etc.  My only hope is that people make all of these things in a way that doesn't require mousing -- some of the key strengths of console computing are being able to do everything from the keyboard and having no dialog windows.
+For the moment, at least.  This could be outdated later.
+
+At the center, the terminal emulator stores its state in a functional zipper, in `fun-terminal.rkt`.
+`cell.rkt` has the data structures for the character cells that the zipper holds.
+I parse console codes into s-expressions in `console-code-parse.rkt`
+`pty.rkt` has a bit of code for interfacing with the Unix PTY system.
+`shell-trampoline.rkt` is a little wrapper for spawned programs to be able to set some Unix stuff before actually executing the provided shell.
+`terminal.rkt` is in charge of communicating with the sub-process, interpreting the s-expressions to mutate the state, etc.  Basically it is everything but some sort of (potentially graphical) visualization and UI.
+`terminal-canvas.rkt` provides a canvas% class that can be embedded in any Racket gui.
+`xterm.rkt` is a full-blown application that basically just wraps the canvas.
+
+I hope to improve the interfaces of these things to make it useful for any program to
+embed a terminal in its GUI if it wants, or parse ANSI console codes for some non-terminal
+use in some application, etc.
+
+

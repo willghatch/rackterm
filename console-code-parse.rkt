@@ -31,6 +31,16 @@ everything else.
 
 |#
 
+#|
+TODO
+I need to standardize the function names here.  These ones are based
+on what I just happened to have defined in my terminal implementation,
+but the API deserves good names.  Then I should document them.
+
+TODO
+Add a generic s-expression parser function to one of the OSC sequences
+to be able to have clients send s-expressions to interpret directly.
+|#
 
 (define (default-handler char)
   (if ((char->integer char) . < . 32)

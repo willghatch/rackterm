@@ -38,4 +38,4 @@ See the included `CONTRIBUTING.md` file.  Or, you know, just go make another ter
 License
 -------
 
-Same as racket itself -- LGPLv3.
+LGPLv3+.
