@@ -38,8 +38,9 @@ on what I just happened to have defined in my terminal implementation,
 but the API deserves good names.  Then I should document them.
 
 TODO
-Add a generic s-expression parser function to one of the OSC sequences
-to be able to have clients send s-expressions to interpret directly.
+Change everything here that ignores and throws away characters so that
+they keep them and make some "unknown-sequence" form so I can see what
+things are used that I don't implement.
 |#
 
 (define (default-handler char)

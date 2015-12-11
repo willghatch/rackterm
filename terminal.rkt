@@ -4,6 +4,8 @@
 (require racket/stream)
 (require racket/block)
 (require racket/runtime-path)
+(require (for-syntax racket/base))
+(require (for-syntax racket/syntax))
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 (require "cell.rkt")
@@ -328,32 +330,21 @@
      term
      (struct-copy style cur-style [fg-color fg] [bg-color bg]))))
 
-;;;; TODO - macro instead of copy/paste
-(define (set-term-bold! term set?)
-  (set-terminal-current-cell-style!
-   term (struct-copy style
-                     (terminal-current-cell-style term)
-                     [bold set?])))
-(define (set-term-italic! term set?)
-  (set-terminal-current-cell-style!
-   term (struct-copy style
-                     (terminal-current-cell-style term)
-                     [italic set?])))
-(define (set-term-underline! term set?)
-  (set-terminal-current-cell-style!
-   term (struct-copy style
-                     (terminal-current-cell-style term)
-                     [underline set?])))
-(define (set-term-blink! term set?)
-  (set-terminal-current-cell-style!
-   term (struct-copy style
-                     (terminal-current-cell-style term)
-                     [blink set?])))
-(define (set-term-reverse-video! term set?)
-  (set-terminal-current-cell-style!
-   term (struct-copy style
-                     (terminal-current-cell-style term)
-                     [reverse-video set?])))
+(define-syntax (def-set-style-bool stx)
+  (syntax-case stx ()
+    [(_ attr)
+     (with-syntax ([fname (format-id #'attr "set-style-~a!" #'attr)])
+       #'(define (fname term set?)
+           (set-terminal-current-cell-style!
+            term (struct-copy style
+                              (terminal-current-cell-style term)
+                              [attr set?]))))]))
+
+(def-set-style-bool bold)
+(def-set-style-bool italic)
+(def-set-style-bool underline)
+(def-set-style-bool blink)
+(def-set-style-bool reverse-video)
 
 
 (define (terminal-forward-lines-column-0 term n)
@@ -387,8 +378,20 @@
 (define-runtime-path terminal-base-namespace.rkt "terminal-base-namespace.rkt")
 
 (define (mk-terminal-namespace term)
-  ;(define ns (make-base-namespace))
-  ;(define ns (make-empty-namespace))
+  #|
+  TODO
+  What I really want is to be able to put ALL of racket/base with require, or
+  all of R5RS or some such, but without network access, file access, FFI access...
+  Basically I want it to be all of racket or scheme, but with safety.
+
+  Also, I would probably like to enable both r5rs AND racket separately --
+  perhaps default to one for normal forms that I get from standard terminal
+  codes, but have two s-expression parsing codes, one for racket and one for scheme.
+
+  At any rate, I need at least a way to let this reset so that one application can
+  define things without worrying about what another has already defined...
+
+  |#
   (define ns (module->namespace terminal-base-namespace.rkt))
   (define (tfun f)
     (λ args (apply f (cons term args))))
@@ -417,11 +420,11 @@
   (tdef 'set-style-default! set-style-default!)
   (tdef 'set-style-fg-color! set-style-fg-color!)
   (tdef 'set-style-bg-color! set-style-bg-color!)
-  (tdef 'set-style-bold! set-term-bold!)
-  (tdef 'set-style-italic! set-term-italic!)
-  (tdef 'set-style-underline! set-term-underline!)
-  (tdef 'set-style-blink! set-term-blink!)
-  (tdef 'set-style-reverse-video! set-term-reverse-video!)
+  (tdef 'set-style-bold! set-style-bold!)
+  (tdef 'set-style-italic! set-style-italic!)
+  (tdef 'set-style-underline! set-style-underline!)
+  (tdef 'set-style-blink! set-style-blink!)
+  (tdef 'set-style-reverse-video! set-style-reverse-video!)
   (tdef 'insert-blanks terminal-insert-blank)
   (tdef 'terminal-clear terminal-clear)
   (tdef 'terminal-clear-from-start-to-cursor terminal-clear-from-start-to-cursor)
