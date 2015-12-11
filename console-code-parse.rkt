@@ -51,7 +51,7 @@ to be able to have clients send s-expressions to interpret directly.
   (case char
     [(#\u07) (values #f '(bell))] ;; BEEP!
     [(#\u08) (values #f '(terminal-forward-chars -1))] ;; backspace
-    [(#\u09) (values #f '(terminal-go-to-next-tab-stop 1))]
+    [(#\u09) (values #f '(terminal-go-to-next-tab-stop))]
     [(#\newline #\u0B #\u0C) (values #f '(terminal-forward-lines 1))]
     [(#\return) (values #f '(terminal-go-to-column 0))] ;; carriage return...
     [(#\u0E) (values #f '(activate-g1-character-set))] ;; activate G1 character set

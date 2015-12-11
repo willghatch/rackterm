@@ -348,6 +348,30 @@
                      (terminal-current-cell-style term)
                      [reverse-video set?])))
 
+
+(define (terminal-forward-lines-column-0 term n)
+  (terminal-go-to-column term 0)
+  (terminal-forward-lines term n))
+(define (terminal-do-esc-M term)
+  (let* ((region (terminal-current-scrolling-region term))
+         (beginning (if (pair? region) (car region) 0)))
+    (if (equal? beginning (terminal-get-row term))
+        (terminal-scroll-region term -1)
+        (terminal-forward-lines term -1))))
+(define (set-style-default! term)
+  (set-terminal-current-cell-style! term default-style))
+(define (set-style-fg-color! term . args)
+  (apply set-term-color! `(,term #t ,@args)))
+(define (set-style-bg-color! term . args)
+  (apply set-term-color! `(,term #f ,@args)))
+(define (terminal-clear term)
+  (terminal-clear-from-start-to-cursor term)
+  (terminal-clear-from-cursor-to-end term))
+(define (terminal-replace-chars-with-space term n)
+  (terminal-delete-forward-at-cursor term n)
+  (terminal-insert-blank term n))
+
+
 (define (terminal-interp term form)
   ;; TODO -- I plan on defining a namespace where these function names in
   ;; the case statements (or whatever I standardize them as) are defined,
@@ -366,49 +390,41 @@
                    (terminal-interp term f))]
         [(terminal-forward-chars) (tapply terminal-forward-chars args)]
         [(terminal-forward-lines) (tapply terminal-forward-lines args)]
-        [(terminal-forward-lines-column-0) (begin (terminal-go-to-column 0)
-                                                  (tapply terminal-forward-lines args))]
+        [(terminal-forward-lines-column-0) (tapply terminal-forward-lines-column-0 args)]
         [(terminal-go-to-row) (tapply terminal-go-to-row args)]
         [(terminal-go-to-column) (tapply terminal-go-to-column args)]
         [(terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
-        [(terminal-do-esc-M) (let* ((region (terminal-current-scrolling-region term))
-                                    (beginning (if (pair? region) (car region) 0)))
-                               (if (equal? beginning (terminal-get-row term))
-                                   (terminal-scroll-region term -1)
-                                   (terminal-forward-lines term -1)))]
+        [(terminal-do-esc-M) (tapply terminal-do-esc-M args)]
+        [(terminal-go-to-next-tab-stop) (tapply terminal-go-to-next-tab-stop args)]
         [(terminal-set-tab-stop) (tapply terminal-set-tab-stop args)]
         [(terminal-set-title!) (tapply set-terminal-title! args)]
-        [(set-terminal-margin-relative-addressing!) (apply set-terminal-margin-relative-addressing! args)]
+        [(set-terminal-margin-relative-addressing!) (tapply set-terminal-margin-relative-addressing! args)]
         [(set-terminal-current-alt-screen-state!) (tapply set-terminal-current-alt-screen-state! args)]
-        [(set-style-default!) (set-terminal-current-cell-style! term default-style)]
-        [(set-style-fg-color!) (apply set-term-color! `(,term #t ,@args) )]
-        [(set-style-bg-color!) (apply set-term-color! `(,term #f ,@args) )]
+        [(set-style-default!) (tapply set-style-default! args)]
+        [(set-style-fg-color!) (tapply set-style-fg-color! args)]
+        [(set-style-bg-color!) (tapply set-style-bg-color! args)]
         [(set-style-bold!) (tapply set-term-bold! args)]
         [(set-style-italic!) (tapply set-term-italic! args)]
         [(set-style-underline!) (tapply set-term-underline! args)]
         [(set-style-blink!) (tapply set-term-blink! args)]
         [(set-style-reverse-video!) (tapply set-term-reverse-video! args)]
         [(insert-blanks) (tapply terminal-insert-blank args)]
-        [(terminal-clear) (begin (terminal-clear-from-start-to-cursor term)
-                                 (terminal-clear-from-cursor-to-end term))]
-        [(terminal-clear-from-start-to-cursor) (terminal-clear-from-start-to-cursor term)]
-        [(terminal-clear-from-cursor-to-end) (terminal-clear-from-cursor-to-end term)]
-        [(terminal-clear-current-line) (terminal-clear-current-line term)]
-        [(terminal-clear-from-start-of-line-to-cursor) (terminal-clear-from-start-of-line-to-cursor term)]
-        [(terminal-delete-to-end-of-line) (terminal-delete-to-end-of-line term)]
+        [(terminal-clear) (tapply terminal-clear args)]
+        [(terminal-clear-from-start-to-cursor) (tapply terminal-clear-from-start-to-cursor args)]
+        [(terminal-clear-from-cursor-to-end) (tapply terminal-clear-from-cursor-to-end args)]
+        [(terminal-clear-current-line) (tapply terminal-clear-current-line args)]
+        [(terminal-clear-from-start-of-line-to-cursor) (tapply terminal-clear-from-start-of-line-to-cursor args)]
+        [(terminal-delete-to-end-of-line) (tapply terminal-delete-to-end-of-line args)]
         [(terminal-insert-lines-with-scrolling-region) (tapply terminal-insert-lines-with-scrolling-region args)]
         [(terminal-delete-lines-with-scrolling-region) (tapply terminal-delete-lines-with-scrolling-region args)]
         [(terminal-delete-forward-at-cursor) (tapply terminal-delete-forward-at-cursor args)]
         [(terminal-scroll-region) (tapply terminal-scroll-region args)]
-        [(terminal-replace-chars-with-space) (begin
-                                               (tapply terminal-delete-forward-at-cursor args)
-                                               (tapply terminal-insert-blank args))]
-        [(terminal-remove-all-tab-stops) (terminal-remove-all-tab-stops term)]
-        [(terminal-remove-tab-stop) (terminal-remove-tab-stop term)]
+        [(terminal-replace-chars-with-space) (tapply terminal-replace-chars-with-space args)]
+        [(terminal-remove-all-tab-stops) (tapply terminal-remove-all-tab-stops args)]
+        [(terminal-remove-tab-stop) (tapply terminal-remove-tab-stop args)]
         [(terminal-set-scrolling-region) (tapply terminal-set-scrolling-region args)]
 
         [else (eprintf "Ignoring form: ~a~n" form)]))
     ((terminal-redraw-callback term))
     ))
-
 
