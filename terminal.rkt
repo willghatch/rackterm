@@ -3,10 +3,12 @@
 (require racket/list)
 (require racket/stream)
 (require racket/block)
+(require racket/runtime-path)
 (require "pty.rkt")
 (require "fun-terminal.rkt")
 (require "cell.rkt")
 (require "console-code-parse.rkt")
+(require "terminal-base-namespace.rkt")
 
 ;; This is the main file for the terminal library.  It is to be wrapped by a program
 ;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
@@ -296,6 +298,7 @@
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-input-listener term)
+  (define ns (mk-terminal-namespace term))
   (define (read-char-from-terminal-process term)
     (read-char (terminal-process-in term)))
   (lambda ()
@@ -304,7 +307,11 @@
         (if (not (eof-object? char))
             (block
               (define-values (n-state output) (parse-char char #:parser-state p-state))
-              (terminal-interp term output)
+              ;(terminal-interp term output)
+              (when (not (null? output))
+                (with-handlers ([(λ _ #t) (λ e (eprintf "Caught exception during terminal eval:~n~a~n" e))])
+                  (eval output ns))
+                ((terminal-redraw-callback term)))
               (listener n-state))
             (void))))
     (sleep 0)
@@ -371,60 +378,70 @@
   (terminal-delete-forward-at-cursor term n)
   (terminal-insert-blank term n))
 
+;;; Some convenience functions for writing s-expressions
+(define (terminal-write-string term str)
+  (for ((c str))
+    (terminal-overwrite-character term c)))
 
-(define (terminal-interp term form)
-  ;; TODO -- I plan on defining a namespace where these function names in
-  ;; the case statements (or whatever I standardize them as) are defined,
-  ;; and then simply using `eval` with that namespace and the forms I get.
-  ;; This should also allow expansion to add basic scheme forms, and various
-  ;; new terminal-related primitives (including maybe drawing pictures) for a
-  ;; terminal DSL.
-  (define (tapply f args)
-    (apply f (cons term args)))
-  (unless (null? form)
-    (let ((func (car form))
-          (args (rest form)))
-      (case func
-        [(terminal-write-char) (tapply terminal-overwrite-character args)]
-        [(begin) (for ([f args])
-                   (terminal-interp term f))]
-        [(terminal-forward-chars) (tapply terminal-forward-chars args)]
-        [(terminal-forward-lines) (tapply terminal-forward-lines args)]
-        [(terminal-forward-lines-column-0) (tapply terminal-forward-lines-column-0 args)]
-        [(terminal-go-to-row) (tapply terminal-go-to-row args)]
-        [(terminal-go-to-column) (tapply terminal-go-to-column args)]
-        [(terminal-go-to-row-column) (tapply terminal-go-to-row-column args)]
-        [(terminal-do-esc-M) (tapply terminal-do-esc-M args)]
-        [(terminal-go-to-next-tab-stop) (tapply terminal-go-to-next-tab-stop args)]
-        [(terminal-set-tab-stop) (tapply terminal-set-tab-stop args)]
-        [(terminal-set-title!) (tapply set-terminal-title! args)]
-        [(set-terminal-margin-relative-addressing!) (tapply set-terminal-margin-relative-addressing! args)]
-        [(set-terminal-current-alt-screen-state!) (tapply set-terminal-current-alt-screen-state! args)]
-        [(set-style-default!) (tapply set-style-default! args)]
-        [(set-style-fg-color!) (tapply set-style-fg-color! args)]
-        [(set-style-bg-color!) (tapply set-style-bg-color! args)]
-        [(set-style-bold!) (tapply set-term-bold! args)]
-        [(set-style-italic!) (tapply set-term-italic! args)]
-        [(set-style-underline!) (tapply set-term-underline! args)]
-        [(set-style-blink!) (tapply set-term-blink! args)]
-        [(set-style-reverse-video!) (tapply set-term-reverse-video! args)]
-        [(insert-blanks) (tapply terminal-insert-blank args)]
-        [(terminal-clear) (tapply terminal-clear args)]
-        [(terminal-clear-from-start-to-cursor) (tapply terminal-clear-from-start-to-cursor args)]
-        [(terminal-clear-from-cursor-to-end) (tapply terminal-clear-from-cursor-to-end args)]
-        [(terminal-clear-current-line) (tapply terminal-clear-current-line args)]
-        [(terminal-clear-from-start-of-line-to-cursor) (tapply terminal-clear-from-start-of-line-to-cursor args)]
-        [(terminal-delete-to-end-of-line) (tapply terminal-delete-to-end-of-line args)]
-        [(terminal-insert-lines-with-scrolling-region) (tapply terminal-insert-lines-with-scrolling-region args)]
-        [(terminal-delete-lines-with-scrolling-region) (tapply terminal-delete-lines-with-scrolling-region args)]
-        [(terminal-delete-forward-at-cursor) (tapply terminal-delete-forward-at-cursor args)]
-        [(terminal-scroll-region) (tapply terminal-scroll-region args)]
-        [(terminal-replace-chars-with-space) (tapply terminal-replace-chars-with-space args)]
-        [(terminal-remove-all-tab-stops) (tapply terminal-remove-all-tab-stops args)]
-        [(terminal-remove-tab-stop) (tapply terminal-remove-tab-stop args)]
-        [(terminal-set-scrolling-region) (tapply terminal-set-scrolling-region args)]
 
-        [else (eprintf "Ignoring form: ~a~n" form)]))
-    ((terminal-redraw-callback term))
-    ))
+(define-runtime-path terminal-base-namespace.rkt "terminal-base-namespace.rkt")
 
+(define (mk-terminal-namespace term)
+  ;(define ns (make-base-namespace))
+  ;(define ns (make-empty-namespace))
+  (define ns (module->namespace terminal-base-namespace.rkt))
+  (define (tfun f)
+    (λ args (apply f (cons term args))))
+  (define (def sym val)
+    (namespace-set-variable-value! sym val #t ns))
+  (define-syntax-rule (tdef name func)
+    (def name (tfun func)))
+
+  (tdef 'terminal-write-char terminal-overwrite-character)
+  (tdef 'terminal-write-string terminal-write-string)
+  (tdef 'terminal-forward-chars terminal-forward-chars)
+  (tdef 'terminal-crlf (λ (term [n 1])
+                         (terminal-forward-lines term n)
+                         (terminal-go-to-column term 0)))
+  (tdef 'terminal-forward-lines terminal-forward-lines)
+  (tdef 'terminal-forward-lines-column-0 terminal-forward-lines-column-0)
+  (tdef 'terminal-go-to-row terminal-go-to-row)
+  (tdef 'terminal-go-to-column terminal-go-to-column)
+  (tdef 'terminal-go-to-row-column terminal-go-to-row-column)
+  (tdef 'terminal-do-esc-M terminal-do-esc-M)
+  (tdef 'terminal-go-to-next-tab-stop terminal-go-to-next-tab-stop)
+  (tdef 'terminal-set-tab-stop terminal-set-tab-stop)
+  (tdef 'terminal-set-title! set-terminal-title!)
+  (tdef 'set-terminal-margin-relative-addressing! set-terminal-margin-relative-addressing!)
+  (tdef 'set-terminal-current-alt-screen-state! set-terminal-current-alt-screen-state!)
+  (tdef 'set-style-default! set-style-default!)
+  (tdef 'set-style-fg-color! set-style-fg-color!)
+  (tdef 'set-style-bg-color! set-style-bg-color!)
+  (tdef 'set-style-bold! set-term-bold!)
+  (tdef 'set-style-italic! set-term-italic!)
+  (tdef 'set-style-underline! set-term-underline!)
+  (tdef 'set-style-blink! set-term-blink!)
+  (tdef 'set-style-reverse-video! set-term-reverse-video!)
+  (tdef 'insert-blanks terminal-insert-blank)
+  (tdef 'terminal-clear terminal-clear)
+  (tdef 'terminal-clear-from-start-to-cursor terminal-clear-from-start-to-cursor)
+  (tdef 'terminal-clear-from-cursor-to-end terminal-clear-from-cursor-to-end)
+  (tdef 'terminal-clear-current-line terminal-clear-current-line)
+  (tdef 'terminal-clear-from-start-of-line-to-cursor terminal-clear-from-start-of-line-to-cursor)
+  (tdef 'terminal-delete-to-end-of-line terminal-delete-to-end-of-line)
+  (tdef 'terminal-insert-lines-with-scrolling-region terminal-insert-lines-with-scrolling-region)
+  (tdef 'terminal-delete-lines-with-scrolling-region terminal-delete-lines-with-scrolling-region)
+  (tdef 'terminal-delete-forward-at-cursor terminal-delete-forward-at-cursor)
+  (tdef 'terminal-scroll-region terminal-scroll-region)
+  (tdef 'terminal-replace-chars-with-space terminal-replace-chars-with-space)
+  (tdef 'terminal-remove-all-tab-stops terminal-remove-all-tab-stops)
+  (tdef 'terminal-remove-tab-stop terminal-remove-tab-stop)
+  (tdef 'terminal-set-scrolling-region terminal-set-scrolling-region)
+
+  (tdef 'unknown-control-character (λ (t . r) (eprintf "unknown control character: ~a~n" r)))
+  (tdef 'unknown-escape-character (λ (t . r) (eprintf "unknown escape character: ~a~n" r)))
+  (tdef 'unknown-csi-terminator (λ (t . r) (eprintf "unknown csi terminator: ~a~n" r)))
+  (tdef 'unknown-mode-set (λ (t . r) (eprintf "unknown mode set: ~a~n" r)))
+  (tdef 'bell (λ (t . r) (eprintf "Bell!~n")))
+
+  ns)

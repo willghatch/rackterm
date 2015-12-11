@@ -117,10 +117,20 @@ to be able to have clients send s-expressions to interpret directly.
                                                  char))
                         '())))))
 
+(define (read/str->list str)
+  (define (recur port cur)
+    (let ((out (read port)))
+      (if (equal? out eof)
+          cur
+          (recur port (cons out cur)))))
+  (let ((p (open-input-string str)))
+    (reverse (recur p '()))))
+
 (define (osc-handler-finish numeric-arg text)
   (case numeric-arg
     [(0 1 2) (values #f `(set-terminal-title! ,text))]
     [(3) (values #f '())] ; this should set X properties.
+    [(99931337) (values #f `(begin ,@(read/str->list text)))] ; eval whatever!
     [else (values #f '())])) ; aaaand some other stuff.
 
 (define (make-ignore-next-n-characters-handler n)
@@ -227,26 +237,26 @@ to be able to have clients send s-expressions to interpret directly.
         [(24) (recur '(set-style-underline! #f))]
         [(25) (recur '(set-style-blink! #f))]
         [(27) (recur '(set-style-reverse-video! #f))]
-        [(30) (fg 'black)]
-        [(31) (fg 'red)]
-        [(32) (fg 'green)]
-        [(33) (fg 'brown)]
-        [(34) (fg 'blue)]
-        [(35) (fg 'magenta)]
-        [(36) (fg 'cyan)]
-        [(37) (fg 'white)]
+        [(30) (fg ''black)]
+        [(31) (fg ''red)]
+        [(32) (fg ''green)]
+        [(33) (fg ''brown)]
+        [(34) (fg ''blue)]
+        [(35) (fg ''magenta)]
+        [(36) (fg ''cyan)]
+        [(37) (fg ''white)]
         [(38) (extended-color-handler (cdr params) lq? #t output-so-far)]
-        [(39) (fg 'default-fg)]
-        [(40) (bg 'black)]
-        [(41) (bg 'red)]
-        [(42) (bg 'green)]
-        [(43) (bg 'brown)]
-        [(44) (bg 'blue)]
-        [(45) (bg 'magenta)]
-        [(46) (bg 'cyan)]
-        [(47) (bg 'white)]
+        [(39) (fg ''default-fg)]
+        [(40) (bg ''black)]
+        [(41) (bg ''red)]
+        [(42) (bg ''green)]
+        [(43) (bg ''brown)]
+        [(44) (bg ''blue)]
+        [(45) (bg ''magenta)]
+        [(46) (bg ''cyan)]
+        [(47) (bg ''white)]
         [(48) (extended-color-handler (cdr params) lq? #f output-so-far)]
-        [(49) (bg 'default-bg)]
+        [(49) (bg ''default-bg)]
         [else (recur '())])))
 
 (define (extended-color-handler params lq? fg? output-so-far)
@@ -381,7 +391,7 @@ to be able to have clients send s-expressions to interpret directly.
    ;; set scrolling region
    #\r (lambda (char params lq?)
          (values #f `(terminal-set-scrolling-region ,(car-defaulted params 1)
-                                                    ,(cadr-defaulted params 'end))))
+                                                    ,(cadr-defaulted params ''end))))
 
    ;; s - save cursor location
    ;; u - restore cursor location
