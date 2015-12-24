@@ -393,7 +393,22 @@
   define things without worrying about what another has already defined...
 
   |#
-  (define ns (module->namespace terminal-base-namespace.rkt))
+  (define ns (make-base-empty-namespace))
+  (parameterize [(current-namespace ns)]
+    (namespace-require '(only racket/base
+                              #%app
+                              #%datum
+                              quote
+                              quasiquote
+                              unquote
+                              unquote-splicing
+                              begin
+                              define
+                              lambda
+                              λ
+                              let
+                              apply
+                              )))
   (define (tfun f)
     (λ args (apply f (cons term args))))
   (define (def sym val)
