@@ -10,7 +10,6 @@
 (require "fun-terminal.rkt")
 (require "cell.rkt")
 (require "console-code-parse.rkt")
-(require "terminal-base-namespace.rkt")
 
 ;; This is the main file for the terminal library.  It is to be wrapped by a program
 ;; to make eg. an xterm or a screen/tmux type emulator, or maybe even a framebuffer
@@ -375,8 +374,6 @@
   (for ((c str))
     (terminal-overwrite-character term c)))
 
-
-(define-runtime-path terminal-base-namespace.rkt "terminal-base-namespace.rkt")
 
 (define (mk-terminal-namespace term)
   #|
