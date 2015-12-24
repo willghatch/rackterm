@@ -168,11 +168,14 @@ things are used that I don't implement.
                 leading-question?)
                '())]
       [else
-       (let ((end-handler (hash-ref csi-table char
-                                    (lambda ()
-                                      (lambda (char params lq?)
-                                        (values #f `(unknown-csi-terminator ,char ,params))))))
-             (final-params (append completed-params (list current-param))))
+       (let* ((final-params (append completed-params (list current-param)))
+              (end-handler
+               (hash-ref csi-table char
+                         (lambda ()
+                           (lambda (char params lq?)
+                             (values #f
+                                     `(unknown-csi-terminator
+                                       ,char (quote ,final-params))))))))
 
          (end-handler char final-params leading-question?))])))
 
