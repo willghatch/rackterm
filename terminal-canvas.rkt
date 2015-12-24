@@ -20,6 +20,8 @@
 ;;;   I really should just redraw any cells that are different instead
 ;;; - wrap input that is too long after a resize down to fewer columns...
 
+(define the-char-bitmap-hash (make-hash))
+
 (define terminal-canvas%
   (class canvas%
     (init-field [command-and-args (list (or (getenv "SHELL") "/bin/sh") "-i")])
@@ -144,14 +146,27 @@
             (send dc set-pen "black" 0 'solid)
             (send dc draw-rectangle cur-x cur-y pixel-x-size line-height)
             (for [(cell line)]
-              (print-terminal-cell dc cell))))
+              (print-terminal-cell dc cell)
+              (set! cur-x (+ cur-x cell-width))
+              )))
+
       (define (print-terminal-cell dc cell)
-        (define s (cell-style cell))
-        (set-dc-font dc s)
-        (send dc set-text-background (style->color% s #f))
-        (send dc set-text-foreground (style->color% s #t))
-        (send dc draw-text (string (cell-character cell)) cur-x cur-y)
-        (set! cur-x (+ cur-x cell-width)))
+        (unless (hash-has-key? the-char-bitmap-hash cell)
+          (hash-set! the-char-bitmap-hash cell (make-cell-bitmap cell)))
+        (send dc draw-bitmap (hash-ref the-char-bitmap-hash cell) cur-x cur-y))
+
+      (define (make-cell-bitmap cell)
+        (define-values (cell-width cell-height) (cell-size))
+        (let* [(cell-bitmap (make-object bitmap% (inexact->exact (truncate cell-width)) (inexact->exact (truncate cell-height))))
+               (cell-dc (make-object bitmap-dc% cell-bitmap))
+               (s (cell-style cell))]
+          (set-dc-font cell-dc s)
+          (send cell-dc set-background (style->color% s #f))
+          (send cell-dc clear)
+          (send cell-dc set-text-background (style->color% s #f))
+          (send cell-dc set-text-foreground (style->color% s #t))
+          (send cell-dc draw-text (string (cell-character cell)) 0 0)
+          cell-bitmap))
 
       (define lines (terminal-get-lines terminal))
       (define (repaint all?)
