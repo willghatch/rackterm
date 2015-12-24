@@ -1,12 +1,13 @@
 #lang racket/base
 
-(require racket/gui/base
-         racket/class)
+(require racket/gui/base)
+(require racket/class)
+(require racket/dict)
 (require "terminal.rkt")
-(require "key-tree.rkt")
+(require "term-key-event.rkt")
 
 (provide terminal-canvas%
-         map-char-event-to-key-tree-event
+         map-char-event-to-term-key-event
          )
 
 ;;; YARR!!! Here be the ugliest code in the whole project!  This file is a mess!
@@ -212,18 +213,20 @@
       (send parent reflow-container)
       )
 
-    (init-field [input-key-tree key-tree-command-map])
-    (define current-key-tree input-key-tree)
+    (init-field [default-key-map key-command-map])
+    (define current-key-map default-key-map)
 
     (define (handle-event-giving-terminal-codes event)
-      (let* ((k-ev (map-char-event-to-key-tree-event event))
-             (mapper (key-tree-get current-key-tree
-                                   (map-char-event-to-key-tree-event event)))
-             (chars (if (key-tree? mapper)
-                        (set! current-key-tree mapper)
-                        (begin
-                          (set! current-key-tree input-key-tree)
-                          ((at-least-one-aritize mapper) k-ev)))))
+      (let* ((k-ev (map-char-event-to-term-key-event event))
+             (handler (get-handler-for-keymap current-key-map
+                                              k-ev
+                                              received-key-default-handler))
+             (chars (cond
+                      [(dict? handler) (set! current-key-map handler)]
+                      [(procedure? handler) (begin (set! current-key-map default-key-map)
+                                                   (handler k-ev))]
+                      [else (error "got bad key handler:" handler)]
+                      )))
         (if (sequence? chars) chars '())))
 
     (define/override (on-char event)
@@ -253,7 +256,7 @@
 
 ;; TODO this should be a parameter to be configured
 (define bindings-ignore-shift #t)
-(define (map-char-event-to-key-tree-event event)
+(define (map-char-event-to-term-key-event event)
   (let ((char (send event get-key-code))
         (C (send event get-control-down))
         (M (send event get-meta-down))
@@ -272,7 +275,7 @@
 (define super-term-prefix #f)
 (define hyper-term-prefix #f)
 
-(define (received-key-default-mapper key-ev)
+(define (received-key-default-handler key-ev)
   (let ((meta (key-event-meta key-ev))
         (ctl (key-event-control key-ev))
         (sup (key-event-super key-ev))
@@ -285,53 +288,54 @@
           ,(if ctl (control-version char) char))
         '())))
 
-(define key-tree-terminal-code-map
-  (keyhandler received-key-default-mapper
-              ;; these are the codes given by most terminals
-              ;; ... or maybe not.  Where ever I got these from was wrong.
-              (key 'escape) (lambda () "\e")
-              (key #\backspace) (lambda () (string #\rubout))
-              (key 'backtab) (lambda () "\e[Z")
-              (key 'wheel-up) (lambda () "\e[A")
-              (key 'wheel-down) (lambda () "\e[B")
-              (key 'up) (lambda () "\e[A")
-              (key 'down) (lambda () "\e[B")
-              (key 'left) (lambda () "\e[D")
-              (key 'right) (lambda () "\e[C")
-              (key 'home) (lambda () "\e[H")
-              (key 'end) (lambda () "\e[F")
-              (key 'prior) (lambda () "\e[5~")
-              (key 'next) (lambda () "\e[6~")
-              (key #\rubout) (lambda () "\e[3~")
-              (key 'insert) (lambda () "\e[2~")
-              (key 'f1) (lambda () "\eOP")
-              (key 'f2) (lambda () "\eOQ")
-              (key 'f3) (lambda () "\eOR")
-              (key 'f4) (lambda () "\eOS")
-              (key 'f5) (lambda () "\e15~")
-              (key 'f6) (lambda () "\e17~")
-              (key 'f7) (lambda () "\e18~")
-              (key 'f8) (lambda () "\e19~")
-              (key 'f9) (lambda () "\e20~")
-              (key 'f10) (lambda () "\e21~")
-              (key 'f11) (lambda () "\e23~")
-              (key 'f12) (lambda () "\e24~")
-              (key 'shift 'f1) (lambda () "\eO1;2P")
-              (key 'shift 'f2) (lambda () "\eO1;2Q")
-              (key 'shift 'f3) (lambda () "\eO1;2R")
-              (key 'shift 'f4) (lambda () "\eO1;2S")
-              (key 'shift 'f5) (lambda () "\e15;2~")
-              (key 'shift 'f6) (lambda () "\e17;2~")
-              (key 'shift 'f7) (lambda () "\e18;2~")
-              (key 'shift 'f8) (lambda () "\e19;2~")
-              (key 'shift 'f9) (lambda () "\e20;2~")
-              (key 'shift 'f10) (lambda () "\e21;2~")
-              (key 'shift 'f11) (lambda () "\e23;2~")
-              (key 'shift 'f12) (lambda () "\e24;2~")
-              ))
+(define key-terminal-code-map
+  (make-keymap
+   'default received-key-default-handler
+   ;; these are the codes given by most terminals
+   ;; ... or maybe not.  Where ever I got these from was wrong.
+   (key 'escape) (lambda _ "\e")
+   (key #\backspace) (lambda _ (string #\rubout))
+   (key 'backtab) (lambda _ "\e[Z")
+   (key 'wheel-up) (lambda _ "\e[A")
+   (key 'wheel-down) (lambda _ "\e[B")
+   (key 'up) (lambda _ "\e[A")
+   (key 'down) (lambda _ "\e[B")
+   (key 'left) (lambda _ "\e[D")
+   (key 'right) (lambda _ "\e[C")
+   (key 'home) (lambda _ "\e[H")
+   (key 'end) (lambda _ "\e[F")
+   (key 'prior) (lambda _ "\e[5~")
+   (key 'next) (lambda _ "\e[6~")
+   (key #\rubout) (lambda _ "\e[3~")
+   (key 'insert) (lambda _ "\e[2~")
+   (key 'f1) (lambda _ "\eOP")
+   (key 'f2) (lambda _ "\eOQ")
+   (key 'f3) (lambda _ "\eOR")
+   (key 'f4) (lambda _ "\eOS")
+   (key 'f5) (lambda _ "\e15~")
+   (key 'f6) (lambda _ "\e17~")
+   (key 'f7) (lambda _ "\e18~")
+   (key 'f8) (lambda _ "\e19~")
+   (key 'f9) (lambda _ "\e20~")
+   (key 'f10) (lambda _ "\e21~")
+   (key 'f11) (lambda _ "\e23~")
+   (key 'f12) (lambda _ "\e24~")
+   (key 'shift 'f1) (lambda _ "\eO1;2P")
+   (key 'shift 'f2) (lambda _ "\eO1;2Q")
+   (key 'shift 'f3) (lambda _ "\eO1;2R")
+   (key 'shift 'f4) (lambda _ "\eO1;2S")
+   (key 'shift 'f5) (lambda _ "\e15;2~")
+   (key 'shift 'f6) (lambda _ "\e17;2~")
+   (key 'shift 'f7) (lambda _ "\e18;2~")
+   (key 'shift 'f8) (lambda _ "\e19;2~")
+   (key 'shift 'f9) (lambda _ "\e20;2~")
+   (key 'shift 'f10) (lambda _ "\e21;2~")
+   (key 'shift 'f11) (lambda _ "\e23;2~")
+   (key 'shift 'f12) (lambda _ "\e24;2~")
+   ))
 
-(define key-tree-command-map
-  (keyhandler-with-fallback
-   key-tree-terminal-code-map
-   (key 'control #\C) (lambda () (eprintf "got C-shift-C~n"))
+(define key-command-map
+  (make-keymap
+   'default (fall-back-to-other-keymap key-terminal-code-map received-key-default-handler)
+   (key 'control #\C) (lambda _ (eprintf "got C-shift-C~n"))
    ))

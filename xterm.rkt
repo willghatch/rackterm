@@ -5,9 +5,10 @@
 (require racket/class)
 (require racket/gui/base)
 (require racket/cmdline)
+(require racket/dict)
 (require "terminal.rkt")
 (require "terminal-canvas.rkt")
-(require "key-tree.rkt")
+(require "term-key-event.rkt")
 
 ;; to run tic
 (require racket/system)
@@ -46,28 +47,27 @@
 (define xterm-frame%
   (class frame%
     (init-field
-     [handling-key-tree
-      (keyhandler #f
-                  (key 'control #\G) (lambda () (send this add-canvas))
-                  (key 'control #\N) (lambda () (send this focus-next))
-                  )])
+     [handling-keymap
+      (make-keymap (key 'control #\G) (lambda _ (send this add-canvas))
+                   (key 'control #\N) (lambda _ (send this focus-next))
+                   )])
 
-    (define current-key-tree handling-key-tree)
-    (define/public (set-current-handler-tree ktree)
-      (set! current-key-tree ktree))
+    (define current-keymap handling-keymap)
+    (define/public (set-current-keymap kmap)
+      (set! current-keymap kmap))
     (define/override (on-subwindow-char receiver event)
-      (define key-ev (map-char-event-to-key-tree-event event))
-      (define handler (key-tree-get current-key-tree key-ev))
-      (cond [(key-tree? handler) (begin
-                                   (set! current-key-tree handler)
+      (define key-ev (map-char-event-to-term-key-event event))
+      (define handler (get-handler-for-keymap current-keymap key-ev (λ _ 'pass-through)))
+      (cond [(dict? handler) (begin
+                                   (set! current-keymap handler)
                                    #t)]
             ;; if the handler returns 'pass-through, let control pass through to the child
             [handler (begin
-                       (set! current-key-tree handling-key-tree)
-                       (define ret ((at-least-one-aritize handler) key-ev))
-                       (if (equal? ret 'pass-through) #f #t))]
-            ;; if handler is #f but the handler-tree was not the default, eat the key (don't pass it)
-            [(not (equal? current-key-tree handling-key-tree)) #t]
+                       (set! current-keymap handling-keymap)
+                       (define ret (handler key-ev))
+                       (not (equal? ret 'pass-through)))]
+            ;; if handler is #f but the keymap was not the default, eat the key (don't pass it)
+            [(not (equal? current-keymap handling-keymap)) #t]
             ;; otherwise just let the kids handle it.
             [else #f]))
 
