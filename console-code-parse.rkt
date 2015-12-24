@@ -37,10 +37,6 @@ I need to standardize the function names here.  These ones are based
 on what I just happened to have defined in my terminal implementation,
 but the API deserves good names.  Then I should document them.
 
-TODO
-Change everything here that ignores and throws away characters so that
-they keep them and make some "unknown-sequence" form so I can see what
-things are used that I don't implement.
 |#
 
 (define (default-handler char)
@@ -73,21 +69,21 @@ things are used that I don't implement.
     [(#\]) (values new-osc-handler '())]
 
     ;; for setting 7 or 8 bit controls, ascii conformance...
-    [(#\space) (values ignore-next-char '())]
+    [(#\space) (values (ignore-next-escaped-char char) '())]
 
     ;;; The rest are less important
-    [(#\#) (values ignore-next-char '())]
-    [(#\%) (values ignore-next-char '())]
-    [(#\+) (values ignore-next-char '())]
-    [(#\-) (values ignore-next-char '())]
-    [(#\*) (values ignore-next-char '())]
-    [(#\/) (values ignore-next-char '())]
-    [(#\.) (values ignore-next-char '())]
+    [(#\#) (values (ignore-next-escaped-char char) '())]
+    [(#\%) (values (ignore-next-escaped-char char) '())]
+    [(#\+) (values (ignore-next-escaped-char char) '())]
+    [(#\-) (values (ignore-next-escaped-char char) '())]
+    [(#\*) (values (ignore-next-escaped-char char) '())]
+    [(#\/) (values (ignore-next-escaped-char char) '())]
+    [(#\.) (values (ignore-next-escaped-char char) '())]
 
 
     ;; these paren ones have something to do with setting character sets
-    [(#\() (values ignore-next-char '())]
-    [(#\)) (values ignore-next-char '())]
+    [(#\() (values (ignore-next-escaped-char char) '())]
+    [(#\)) (values (ignore-next-escaped-char char) '())]
     [else (values #f `(unknown-escape-character ,char))]))
 
 (define (make-osc-handler numeric-arg)
@@ -134,12 +130,13 @@ things are used that I don't implement.
     [(99931337) (values #f `(begin ,@(read/str->list text)))] ; eval whatever!
     [else (values #f '())])) ; aaaand some other stuff.
 
-(define (make-ignore-next-n-characters-handler n)
+(define (make-ignore-next-n-escape-sequence-handler so-far n)
   (lambda (char)
     (if (n . < . 2)
-        (values #f '())
-        (values (make-ignore-next-n-characters-handler (sub1 n)) '()))))
-(define ignore-next-char (make-ignore-next-n-characters-handler 1))
+        (values #f `(ignored-escape-sequence (quote ,(reverse (cons char so-far)))))
+        (values (make-ignore-next-n-escape-sequence-handler (cons char so-far) (sub1 n)) '()))))
+(define (ignore-next-escaped-char start-char)
+  (make-ignore-next-n-escape-sequence-handler (list start-char) 1))
 
 (define (make-csi-handler completed-params current-param leading-question?)
   ;; CSI sequences start with 'ESC [', then possibly a question mark (which seems
