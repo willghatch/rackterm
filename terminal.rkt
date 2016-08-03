@@ -51,6 +51,7 @@
    title
    margin-relative-addressing ; do the go-to-row/col commands base on the scrolling region -- DECOM
    subproc-ended-callback
+   cursor-visible?
    )
   #:mutable)
 
@@ -75,6 +76,7 @@
                    "rackterm"
                    #f ; margin relative addressing
                    subproc-ended-callback
+                   #t ; cursor-visible?
                    ))
   (define-values (m-in m-out s-in s-out master-fd slave-fd) (openpty))
   (define sub-env (environment-variables-copy (current-environment-variables)))
@@ -262,7 +264,8 @@
   (flush-output (terminal-process-out term)))
 
 (define (terminal-get-lines term)
-  (fun-terminal->lines-from-end (terminal-fun-terminal term) #t))
+  (fun-terminal->lines-from-end (terminal-fun-terminal term)
+                                (terminal-cursor-visible? term)))
 
 (define (terminal-make-cell term char)
   (make-cell char (terminal-current-cell-style term)))
@@ -436,6 +439,7 @@
   (tdef 'terminal-set-title! set-terminal-title!)
   (tdef 'set-terminal-margin-relative-addressing! set-terminal-margin-relative-addressing!)
   (tdef 'set-terminal-current-alt-screen-state! set-terminal-current-alt-screen-state!)
+  (tdef 'set-terminal-cursor-visible! set-terminal-cursor-visible?!)
   (tdef 'set-style-default! set-style-default!)
   (tdef 'set-style-fg-color! set-style-fg-color!)
   (tdef 'set-style-bg-color! set-style-bg-color!)

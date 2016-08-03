@@ -216,6 +216,7 @@ but the API deserves good names.  Then I should document them.
         (if private?
             (case setting
               [(6) (recur `(set-terminal-margin-relative-addressing! ,on?))]
+              [(25) (recur `(set-terminal-cursor-visible! ,on?))]
               [(1049) (recur `(set-terminal-current-alt-screen-state! ,on?))]
               [else (recur (mk-ignore))])
             (case setting
