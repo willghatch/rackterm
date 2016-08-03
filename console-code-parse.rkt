@@ -30,6 +30,10 @@ non-printing codes I care about and filter down to those ones, so an
 application may get styling information for some strings, but ignore
 everything else.
 
+
+Note:  a good reference for ANSI codes that xterm supports:
+http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+
 |#
 
 #|
@@ -93,6 +97,7 @@ but the API deserves good names.  Then I should document them.
     ;; these paren ones have something to do with setting character sets
     [(#\() (values (ignore-next-escaped-char char) '())]
     [(#\)) (values (ignore-next-escaped-char char) '())]
+    ;; = sets application keypad, > sets normal keypad
     [else (values #f `(unknown-escape-character ,char))]))
 
 (define (make-osc-handler numeric-arg)
@@ -215,9 +220,14 @@ but the API deserves good names.  Then I should document them.
           `(unknown-mode-set ,setting ,private? ,on?))
         (if private?
             (case setting
+              ;; 1 - application cursor keys
               [(6) (recur `(set-terminal-margin-relative-addressing! ,on?))]
               [(25) (recur `(set-terminal-cursor-visible! ,on?))]
+              [(12) (recur `(set-terminal-cursor-blink! ,on?))]
+              ;; 1000 - send mouse XY on press/release
+              ;; 1006 - enable SGR mouse mode
               [(1049) (recur `(set-terminal-current-alt-screen-state! ,on?))]
+              ;; 2004 - bracketed paste mode
               [else (recur (mk-ignore))])
             (case setting
               [else (recur (mk-ignore))])))))
