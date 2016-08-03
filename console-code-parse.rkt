@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/block)
 (require racket/list)
+(require racket/match)
 
 (provide parse-char
          parse-string)
@@ -49,13 +50,21 @@ but the API deserves good names.  Then I should document them.
     [(#\u07) (values #f '(bell))] ;; BEEP!
     [(#\u08) (values #f '(terminal-forward-chars -1))] ;; backspace
     [(#\u09) (values #f '(terminal-go-to-next-tab-stop))]
-    [(#\newline #\u0B #\u0C) (values #f '(terminal-forward-lines 1))]
-    [(#\return) (values #f '(terminal-go-to-column 0))] ;; carriage return...
+    [(#\newline #\u0B #\u0C) (values #f '(terminal-newline))]
+    [(#\return) (values handle-post-return '())] ;; carriage return...
     [(#\u0E) (values #f '(activate-g1-character-set))] ;; activate G1 character set
     [(#\u0F) (values #f '(activate-g0-character-set))] ;; activate G0 character set
     [(#\u1B) (values escape-handler '())] ;; start escape sequence
     [(#\u9B) (values new-csi-handler '())]
     [else (values #f `(unknown-control-character ,char))]))
+
+(define (handle-post-return char)
+  (case char
+    [(#\newline) (values #f '(terminal-crlf))]
+    [else (let-values ([(handler out) (default-handler char)])
+            (if (null? out)
+                (values handler '(terminal-return))
+                (values handler `(begin (terminal-return) ,out))))]))
 
 (define (escape-handler char)
   ;; IE handling after receiving ESC character
@@ -189,10 +198,14 @@ but the API deserves good names.  Then I should document them.
     [(equal? (cadr l) 0) default]
     [else (cadr l)]))
 
+(define (filter-nulls xs)
+  (filter (λ (x) (not (null? x)))
+          xs))
+
 (define (handle-set-mode char params private? output-so-far)
   ;; reset if l, set if h
   (if (null? params)
-      (values #f `(begin ,@(reverse output-so-far)))
+      (values #f `(begin ,@(filter-nulls (reverse output-so-far))))
       (block
         (define on? (equal? char #\h))
         (define (recur o-s-f)
@@ -220,7 +233,7 @@ but the API deserves good names.  Then I should document them.
   (define (bg color)
     (recur `(set-style-bg-color! ,color)))
   (if (null? params)
-      (values #f `(begin ,@(reverse output-so-far)))
+      (values #f `(begin ,@(filter-nulls (reverse output-so-far))))
       (case (car params)
         [(0) (recur '(set-style-default!))]
         [(1) (recur '(set-style-bold! #t))]
@@ -413,7 +426,6 @@ but the API deserves good names.  Then I should document them.
       (default-handler c)))
 
 (define (parse-string s #:parser-state [init-handler #f])
-
   (let-values
       ([(handler-out r-outputs)
         (for/fold ([handler (or init-handler default-handler)]
@@ -426,6 +438,50 @@ but the API deserves good names.  Then I should document them.
                         (cons result outputs)))))])
     (values handler-out (reverse r-outputs))))
 
+(define (squash-begins results)
+  (match results
+    ['() '()]
+    [(list-rest (list-rest 'begin b-forms) forms-rest)
+     (append b-forms (squash-begins forms-rest))]
+    [(list-rest x xs) (cons x (squash-begins xs))]))
+
+(define (squash-write-char results)
+  (define (rec forms cur-chars)
+    (match forms
+      ['() (if (null? cur-chars)
+               '()
+               `((terminal-write-string ,(apply string (reverse cur-chars)))))]
+      [(list-rest `(terminal-write-char ,c) r-forms)
+       (rec r-forms (cons c cur-chars))]
+      [else (if (null? cur-chars)
+                (cons (car forms) (rec (cdr forms) cur-chars))
+                (cons `(terminal-write-string ,(apply string (reverse cur-chars)))
+                      (rec forms '())))]))
+  (rec results '()))
+
+(define (parse-string/squash s #:parser-state [init-handler #f])
+  (let-values ([(parser-state output) (parse-string s #:parser-state init-handler)])
+    (values parser-state (squash-write-char (squash-begins output)))))
+
+(define (parse-string/no-state s)
+  (let-values ([(parser-state output) (parse-string/squash s)])
+    output))
+
+(define (parse-results->bare-string squashed-results)
+  (let ([strs (map (λ (r) (cond [(equal? (car r) 'terminal-write-string) (cadr r)]
+                                [else "\n"]))
+                   (filter (λ (r) (or (equal? (car r) 'terminal-write-string)
+                                      (equal? (car r) 'terminal-newline)
+                                      (equal? (car r) 'terminal-crlf)
+                                      ;; I think I don't want to have both \r\n in...
+                                      ;;(equal? (car r) 'terminal-return)
+                                      ))
+                           squashed-results))])
+    (apply string-append strs)))
+
+(define (parse-out-ansi s)
+  ;; remove ansi codes and get bare strings back
+  (parse-results->bare-string (parse-string/no-state s)))
 
 (module+ test
   (require rackunit)
@@ -439,9 +495,12 @@ but the API deserves good names.  Then I should document them.
                   (terminal-write-char #\e)
                   (terminal-write-char #\s)
                   (terminal-write-char #\t)))
+  (check-equal? (parse-string/no-state "test")
+                '((terminal-write-string "test")))
   (check-equal? (p "\a")
                 '((bell)))
-  (check-equal? (p "\033[32;41mtesting\033[5;4;38;2;33;55;127m colors\033[0m")
+  (define color-string "\033[32;41mtesting\033[5;4;38;2;33;55;127m colors\033[0m")
+  (check-equal? (p color-string)
                 '((begin (set-style-fg-color! 'green)
                          (set-style-bg-color! 'red))
                   (terminal-write-char #\t)
@@ -462,7 +521,16 @@ but the API deserves good names.  Then I should document them.
                   (terminal-write-char #\o)
                   (terminal-write-char #\r)
                   (terminal-write-char #\s)
-                  (begin
-                    (set-style-default!))
-                         ))
+                  (begin (set-style-default!))))
+  (check-equal? (parse-string/no-state color-string)
+                '((set-style-fg-color! 'green)
+                  (set-style-bg-color! 'red)
+                  (terminal-write-string "testing")
+                  (set-style-blink! #t)
+                  (set-style-underline! #t)
+                  (set-style-fg-color! 33 55 127)
+                  (terminal-write-string " colors")
+                  (set-style-default!)))
+  (check-equal? (parse-out-ansi color-string)
+                "testing colors")
   )

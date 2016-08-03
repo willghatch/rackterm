@@ -373,6 +373,10 @@
 (define (terminal-write-string term str)
   (for ((c str))
     (terminal-overwrite-character term c)))
+(define (terminal-newline term)
+  (terminal-forward-lines term 1))
+(define (terminal-return term)
+  (terminal-go-to-column term 0))
 
 
 (define (mk-terminal-namespace term)
@@ -415,10 +419,12 @@
 
   (tdef 'terminal-write-char terminal-overwrite-character)
   (tdef 'terminal-write-string terminal-write-string)
+  (tdef 'terminal-newline terminal-newline)
+  (tdef 'terminal-return terminal-return)
   (tdef 'terminal-forward-chars terminal-forward-chars)
   (tdef 'terminal-crlf (λ (term [n 1])
-                         (terminal-forward-lines term n)
-                         (terminal-go-to-column term 0)))
+                         (terminal-go-to-column term 0)
+                         (terminal-forward-lines term n)))
   (tdef 'terminal-forward-lines terminal-forward-lines)
   (tdef 'terminal-forward-lines-column-0 terminal-forward-lines-column-0)
   (tdef 'terminal-go-to-row terminal-go-to-row)
