@@ -467,11 +467,12 @@
   (tdef 'terminal-remove-tab-stop terminal-remove-tab-stop)
   (tdef 'terminal-set-scrolling-region terminal-set-scrolling-region)
 
-  (tdef 'unknown-control-character (λ (t . r) (eprintf "unknown control character: ~a~n" r)))
-  (tdef 'unknown-escape-character (λ (t . r) (eprintf "unknown escape character: ~a~n" r)))
-  (tdef 'ignored-escape-sequence (λ (t . r) (eprintf "ignored escape sequence: ~a~n" r)))
-  (tdef 'unknown-csi-terminator (λ (t . r) (eprintf "unknown csi terminator: ~a~n" r)))
-  (tdef 'unknown-mode-set (λ (t . r) (eprintf "unknown mode set: ~a~n" r)))
+  (tdef 'unknown-control-character (λ (t . r) (eprintf "unknown control character: ~s~n" r)))
+  (tdef 'unknown-escape-character (λ (t . r) (eprintf "unknown escape character: ~s~n" r)))
+  (tdef 'ignored-escape-sequence (λ (t . r) (eprintf "ignored escape sequence: ~s~n" r)))
+  (tdef 'unknown-csi-terminator (λ (t . r) (eprintf "unknown csi terminator: ~s~n" r)))
+  (tdef 'unknown-osc-sequence (λ (t . r) (eprintf "unknown osc sequence: ~s~n" r)))
+  (tdef 'unknown-mode-set (λ (t . r) (eprintf "unknown mode set: ~s~n" r)))
   (tdef 'bell (λ (t . r) (eprintf "Bell!~n")))
 
   ns)

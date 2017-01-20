@@ -108,23 +108,37 @@ but the API deserves good names.  Then I should document them.
        (values (make-osc-handler (+ (* 10 numeric-arg)
                                     (read (open-input-string (string char)))))
                '())]
-      ;; the only other character should be the semicolon
-      [else (values (make-osc-text-handler numeric-arg "" #f) '())])))
+      ;; TODO -- ESC ] P NRRGGBB <maybe ST?> -- sets color N of the base 16-color palette on Linux terminal
+      ;; TODO -- ESC ] R <maybe ST?> -- resets the 16-color palette on Linux terminal
+      ;; Semicolon separates the numeric command from its text
+      [(#\;) (values (make-osc-text-handler numeric-arg '() #f) '())]
+      ;; We could just get ST here rather than any text
+      [(#\u001b)
+       ;; ESC \ is the normal ST, I'll assume that if I get ESC here the next char
+       ;; is \.
+       (values (λ (char) (osc-handler-finish numeric-arg ""))
+                         '())]
+      [(#\u0007)
+       ;; BELL is the other version of ST
+       (osc-handler-finish numeric-arg "")]
+      ;; This shouldn't happen, but could!  Assume it's ST, I guess.
+      [else (osc-handler-finish numeric-arg "")])))
 (define new-osc-handler (make-osc-handler 0))
-(define (make-osc-text-handler numeric-arg text previous-char)
+
+(define (make-osc-text-handler numeric-arg text-list-rev previous-char)
   (lambda (char)
     ;; the string terminator is ESC-\
     ;; but xterm seems to support just #\u07 (ascii BELL)
     (cond ((and (equal? char #\\)
                 (equal? previous-char #\u1B))
-           (osc-handler-finish numeric-arg text))
+           (osc-handler-finish numeric-arg (apply string (reverse text-list-rev))))
           ((equal? char #\u07)
-           (osc-handler-finish numeric-arg (string-append text (string previous-char))))
-          (else (values (let ((new-text (if previous-char
-                                            (string-append text (string previous-char))
-                                            "")))
+           (osc-handler-finish numeric-arg (apply string (reverse (cons previous-char text-list-rev)))))
+          (else (values (let ((new-text-rev (if previous-char
+                                            (cons previous-char text-list-rev)
+                                            '())))
                           (make-osc-text-handler numeric-arg
-                                                 new-text
+                                                 new-text-rev
                                                  char))
                         '())))))
 
@@ -139,10 +153,10 @@ but the API deserves good names.  Then I should document them.
 
 (define (osc-handler-finish numeric-arg text)
   (case numeric-arg
-    [(0 1 2) (values #f `(set-terminal-title! ,text))]
+    [(0 1 2) (values #f `(terminal-set-title! ,text))]
     [(3) (values #f '())] ; this should set X properties.
     [(99931337) (values #f `(begin ,@(read/str->list text)))] ; eval whatever!
-    [else (values #f '())])) ; aaaand some other stuff.
+    [else (values #f `(unknown-osc-sequence ,numeric-arg ,text))])) ; aaaand some other stuff.
 
 (define (make-ignore-next-n-escape-sequence-handler so-far n)
   (lambda (char)
