@@ -1,19 +1,34 @@
 # TERMINFO file for rackterm
 #
-# Based on xterm terminfo.  May not be entirely correct, since I'm just saying,
-# "Hey, I'm basically the same as an xterm."
-#
 # Install:
-#
 #   tic rackterm.terminfo
 #
 # Usage:
-#
 #   export TERM=rackterm
 #
+# Useful reference for editing this:
+# http://pubs.opengroup.org/onlinepubs/7908799/xcurses/terminfo.html
 rackterm|racket terminal emulator,
-#       italics
-	sitm=\E[3m, ritm=\E[23m,
-#       OK, it's basically like xterm...
-	use=xterm-256color,
+# Booleans are supposed to go first
+# to set a bool to false, write capname@
+# screen erased with background color - NOT
+ bce@,
+# can change pre-defined colors - NOT
+ ccc@,
+# Numeric variables are next
+# colors#16777216,
+ colors#256, pairs#32767,
+# italics
+ sitm=\E[3m, ritm=\E[23m,
+# use normal clear command, not what xterm-256color uses
+ rs1=\Ec,
+# no init string
+ initc@,
+# disable these color setting things - use setab/setaf
+ setf@, setb@,
+# this is how to set colors from the 256-color pallette
+ setab=\E[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e48;5;%p1%d%;m,
+ setaf=\E[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e38;5;%p1%d%;m,
+# OK, it's basically like xterm...
+ use=xterm-256color,
 
