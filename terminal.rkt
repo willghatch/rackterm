@@ -226,10 +226,17 @@
 
 (define (terminal-set-size term width height)
   (define n-rows (fun-terminal-get-num-rows (terminal-fun-terminal term)))
-  (define row-diff (- height n-rows))
-  (when (> row-diff 0)
-    (for ((i (in-range row-diff)))
-      (terminal-append-line-at-end term)))
+  (define (grow-to-new-size)
+    (define row-diff (- height n-rows))
+    (when (> row-diff 0)
+      (for ((i (in-range row-diff)))
+        (terminal-append-line-at-end term))))
+
+  (define state (terminal-current-alt-screen-state term))
+  (set-terminal-current-alt-screen-state! term (not state))
+  (grow-to-new-size)
+  (set-terminal-current-alt-screen-state! term state)
+  (grow-to-new-size)
 
   (set-terminal-current-width! term width)
   (set-terminal-current-height! term height)
