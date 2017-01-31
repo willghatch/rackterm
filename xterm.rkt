@@ -76,6 +76,7 @@
                     [parent this]
                     [font-size (font-size)]
                     [font-name (font-name)]
+                    [term-var (term-var)]
                     [command-and-args command-and-args]
                     [set-title-callback (lambda (title) (send this set-label title))]
                     [horiz-margin 2]
