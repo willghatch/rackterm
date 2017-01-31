@@ -56,8 +56,8 @@ but the API deserves good names.  Then I should document them.
     [(#\u09) (values #f '(terminal-go-to-next-tab-stop))]
     [(#\newline #\u0B #\u0C) (values #f '(terminal-newline))]
     [(#\return) (values handle-post-return '())] ;; carriage return...
-    [(#\u0E) (values #f '(activate-g1-character-set))] ;; activate G1 character set
-    [(#\u0F) (values #f '(activate-g0-character-set))] ;; activate G0 character set
+    ;[(#\u0E) (values #f '(activate-g1-character-set))] ;; activate G1 character set
+    ;[(#\u0F) (values #f '(activate-g0-character-set))] ;; activate G0 character set
     [(#\u1B) (values escape-handler '())] ;; start escape sequence
     [(#\u9B) (values new-csi-handler '())]
     [else (values #f `(unknown-control-character ,char))]))
