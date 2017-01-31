@@ -235,7 +235,7 @@
 
     (define/override (on-char event)
       (let ((key (send event get-key-code)))
-        (if (not (equal? 'release key))
+        (if (not (member key '(release #\nul)))
             (for ((char (handle-event-giving-terminal-codes event)))
               (when (char? char)
                 ;(eprintf "sending to subproc: ~s~n" char)
