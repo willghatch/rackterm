@@ -83,6 +83,9 @@
 (define (cursor-line-overwrite line cell)
   (cursor-line-insert-cell (cursor-line-delete-cell-forward line)
                            cell))
+(define (cursor-line-overwrite-behind line cell)
+  (cursor-line-insert-cell (cursor-line-delete-cell-backward line)
+                           cell))
 
 (define (cursor-line-move-cursor-backward line)
   (if (equal? (cursor-line-length-cells-before-cursor line) 0)
@@ -115,6 +118,12 @@
           (iter (adv-func line) (sub1 n))))
     (iter line (abs n))))
 
+(define (fun-terminal-get-cell-before-cursor term)
+  (let* ([cline (fun-terminal-cursor-line term)]
+         [pre (cursor-line-cells-before-cursor cline)])
+    (if (null? pre)
+        #f
+        (car pre))))
 
 (define (move-cursor-line terminal [forward? #t] [additive? #t] [line-index 'current])
   (let* ((old-before (fun-terminal-pre-cursor-lines terminal))
@@ -202,6 +211,8 @@
   (fun-terminal-edit-cursor-line terminal cursor-line-delete-cell-forward n))
 (define (fun-terminal-overwrite terminal cell)
   (fun-terminal-edit-cursor-line terminal cursor-line-overwrite cell))
+(define (fun-terminal-overwrite-behind terminal cell)
+  (fun-terminal-edit-cursor-line terminal cursor-line-overwrite-behind cell))
 
 (define (fun-terminal-forward-cells term [n-cells 1])
   (struct-copy fun-terminal term

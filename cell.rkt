@@ -7,8 +7,24 @@
 (provide (all-defined-out))
 
 (define-struct cell
+  ;; character is either a true character or a list of characters
+  ;; (to support combining marks).
   (character style)
   #:transparent)
+
+(define (cell-is-combining-mark? cell)
+  (let ([c (cell-character cell)])
+    (and (char? c)
+         (member (char-general-category c) '(mn mc me)))))
+
+(define (append-mark-cell base-cell mark-cell)
+  ;; combining marks combine with the character in front of them
+  (define base-c (cell-character base-cell))
+  (define mark-c (cell-character mark-cell))
+  (define new-c (if (list? base-c)
+                    (append base-c (list mark-c))
+                    (list base-c mark-c)))
+  (cell new-c (cell-style base-cell)))
 
 (define-struct style
   ;; colors are symbols 'red, 'blue, etc for 8 color palette

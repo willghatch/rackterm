@@ -158,6 +158,10 @@
 
       (define (make-cell-bitmap cell)
         (define-values (cell-width cell-height) (cell-size))
+        (define (cell-char->string char)
+          (if (list? char)
+              (apply string char)
+              (string char)))
         (let* [(cell-bitmap (make-object bitmap% (inexact->exact (truncate cell-width)) (inexact->exact (truncate cell-height))))
                (cell-dc (make-object bitmap-dc% cell-bitmap))
                (s (cell-style cell))]
@@ -166,7 +170,7 @@
           (send cell-dc clear)
           (send cell-dc set-text-background (style->color% s #f))
           (send cell-dc set-text-foreground (style->color% s #t))
-          (send cell-dc draw-text (string (cell-character cell)) 0 0)
+          (send cell-dc draw-text (cell-char->string (cell-character cell)) 0 0 #t)
           cell-bitmap))
 
       (define lines (terminal-get-lines terminal))

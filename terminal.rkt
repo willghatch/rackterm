@@ -184,12 +184,23 @@
               (-terminal-forward-lines term to-move)
               (terminal-scroll-region term beyond))))))
 
+(define (get-cell-before-cursor-same-row term)
+  (fun-terminal-get-cell-before-cursor (terminal-fun-terminal term)))
+
 (define (terminal-overwrite term cell)
-  ;; This may need looking into when I want to handle re-wrapping on size changes
-  (when (equal? (terminal-get-column term) (terminal-current-width term))
-    (terminal-forward-lines term 1)
-    (terminal-go-to-column term 0))
-  (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell))))
+  (let ([pre-cell (get-cell-before-cursor-same-row term)])
+    (if (and (cell-is-combining-mark? cell)
+             pre-cell)
+        ;; instead of writing ahead, combine this cell with the previous one
+        (terminal-mutate term
+                         (λ (ft) (fun-terminal-overwrite-behind
+                                  ft (append-mark-cell pre-cell cell))))
+        (begin
+          ;; This may need looking into when I want to handle re-wrapping on size changes
+          (when (equal? (terminal-get-column term) (terminal-current-width term))
+            (terminal-forward-lines term 1)
+            (terminal-go-to-column term 0))
+          (terminal-mutate term (lambda (ft) (fun-terminal-overwrite ft cell)))))))
 (define (terminal-append-line-at-end term)
   (terminal-mutate term (lambda (ft) (fun-terminal-add-blank-line-at-end ft))))
 (define (terminal-clear-from-cursor-to-end term)
@@ -279,8 +290,9 @@
 (define (terminal-make-cell term char)
   (make-cell char (terminal-current-cell-style term)))
 
-(define (terminal-insert-character term char)
-  (terminal-insert-at-cursor term (terminal-make-cell term char)))
+(define (terminal-overwrite-character term char)
+  ;(eprintf "writing character ~s~n" char)
+  (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-get-column term)
   (fun-terminal-get-column (terminal-fun-terminal term)))
@@ -305,10 +317,6 @@
   (terminal-go-to-row term row)
   (terminal-go-to-column term column))
 
-
-(define (terminal-overwrite-character term char)
-  ;(eprintf "writing character ~s~n" char)
-  (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-input-listener term)
   (define ns (mk-terminal-namespace term))
