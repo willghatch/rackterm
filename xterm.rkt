@@ -103,7 +103,7 @@
   (define (do-main)
     ;; This is in a function because otherwise it prints stuff for being
     ;; at the top level
-    (system (string-append "tic " (path->string terminfo-file)))
+    (system* (find-executable-path "tic") "-x" (path->string terminfo-file))
 
     (define frame (new xterm-frame%
                        [label "racket xterm"]
