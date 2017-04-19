@@ -86,7 +86,7 @@
   (define-values (subproc sub-in sub-out sub-err)
     (parameterize ([current-environment-variables sub-env])
       (apply subprocess (append (list s-out s-in 'stdout
-                                      "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline")
+                                      "/usr/bin/env" "racket" "-l" "rackterm/shell-trampoline" "--")
                                 command-and-args))))
   (let ((new-term
          (-init-terminal m-in m-out master-fd slave-fd redraw-callback)))
