@@ -1,0 +1,14 @@
+Main things to do:
+
+* Clean up parsing code, make a nice library out of it for parsing ansi codes and terminal output for any application.
+** It would be nice to have a single library that goes both ways -- both parse and generate ansi codes.
+* figure out a good interface for the actual terminal object, make a public library for creating terminals (with whatever interface you want to layer on top)
+* improve the terminal canvas, give it a good stable public interface
+* make a fast xterm.  Currently it's too slow to use as a daily-driver terminal (all due to the display speed).
+* add scrollback
+* generally clean things up
+* make a tmux/screen style terminal multiplexer.
+* change the underlying data structures to allow NON-infinite history.
+* make something non-terrible for key binding/interpretation
+* add some way to configure things
+* add documentation as more public parts are released
