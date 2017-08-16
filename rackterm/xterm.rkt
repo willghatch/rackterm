@@ -6,9 +6,9 @@
 (require racket/gui/base)
 (require racket/cmdline)
 (require racket/dict)
-(require "terminal.rkt")
-(require "terminal-canvas.rkt")
-(require "term-key-event.rkt")
+(require "private/terminal.rkt")
+(require "private/terminal-canvas.rkt")
+(require "private/term-key-event.rkt")
 
 ;; to run tic
 (require racket/system)
