@@ -33,7 +33,7 @@ If it doesn't run on your system, open an issue at https://github.com/willghatch
 Want to contribute to the future best terminal emulator ever?
 -------------------------------------------------------------
 
-See the included `CONTRIBUTING.md` file.  Or, you know, just go make another terminal emulator that will be better than this one, and all others.
+See the included `CONTRIBUTING.md` file.  Or, you know, just go make another terminal emulator or figure out which one the best is (because this one is clearly not the best one).
 
 License
 -------
