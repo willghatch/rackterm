@@ -238,7 +238,7 @@
         (if (not (member key '(release #\nul)))
             (for ((char (handle-event-giving-terminal-codes event)))
               (when (char? char)
-                ;(eprintf "sending to subproc: ~s~n" char)
+                ;(eprintf "sending to subproc: ~s\n" char)
                 (send-char-to-terminal-process terminal char)))
             null)))
     (define/override (on-event event)
@@ -341,5 +341,5 @@
 (define key-command-map
   (make-keymap
    'default (fall-back-to-other-keymap key-terminal-code-map received-key-default-handler)
-   (key 'control #\C) (lambda _ (eprintf "got C-shift-C~n"))
+   (key 'control #\C) (lambda _ (eprintf "got C-shift-C\n"))
    ))

@@ -175,7 +175,7 @@
              (was-already-beyond (and (not (equal? 0 beyond))
                                       (not (equal? (negative? to-move)
                                                    (negative? beyond))))))
-;        (eprintf "forward-n-lines ~a, cur ~a, region ~a, to-move ~a, to-scroll ~a, was-already-beyond ~a~n"
+;        (eprintf "forward-n-lines ~a, cur ~a, region ~a, to-move ~a, to-scroll ~a, was-already-beyond ~a\n"
 ;                n cur region to-move beyond was-already-beyond)
         (if was-already-beyond
             (-terminal-forward-lines term n)
@@ -290,7 +290,7 @@
   (make-cell char (terminal-current-cell-style term)))
 
 (define (terminal-overwrite-character term char)
-  ;(eprintf "writing character ~s~n" char)
+  ;(eprintf "writing character ~s\n" char)
   (terminal-overwrite term (terminal-make-cell term char)))
 
 (define (terminal-get-column term)
@@ -330,7 +330,7 @@
               ;(terminal-interp term output)
               (when (not (null? output))
                 (with-handlers ([(λ _ #t)
-                                 (λ e (eprintf "Caught exception during terminal eval of ~v:~n~a~n" output e))])
+                                 (λ e (eprintf "Caught exception during terminal eval of ~v:\n~a\n" output e))])
                   (eval output ns))
                 ((terminal-redraw-callback term)))
               (listener n-state))
@@ -481,12 +481,12 @@
   (tdef 'terminal-remove-tab-stop terminal-remove-tab-stop)
   (tdef 'terminal-set-scrolling-region terminal-set-scrolling-region)
 
-  (tdef 'unknown-control-character (λ (t . r) (eprintf "unknown control character: ~s~n" r)))
-  (tdef 'unknown-escape-character (λ (t . r) (eprintf "unknown escape character: ~s~n" r)))
-  (tdef 'ignored-escape-sequence (λ (t . r) (eprintf "ignored escape sequence: ~s~n" r)))
-  (tdef 'unknown-csi-terminator (λ (t . r) (eprintf "unknown csi terminator: ~s~n" r)))
-  (tdef 'unknown-osc-sequence (λ (t . r) (eprintf "unknown osc sequence: ~s~n" r)))
-  (tdef 'unknown-mode-set (λ (t . r) (eprintf "unknown mode set: ~s~n" r)))
-  (tdef 'bell (λ (t . r) (eprintf "Bell!~n")))
+  (tdef 'unknown-control-character (λ (t . r) (eprintf "unknown control character: ~s\n" r)))
+  (tdef 'unknown-escape-character (λ (t . r) (eprintf "unknown escape character: ~s\n" r)))
+  (tdef 'ignored-escape-sequence (λ (t . r) (eprintf "ignored escape sequence: ~s\n" r)))
+  (tdef 'unknown-csi-terminator (λ (t . r) (eprintf "unknown csi terminator: ~s\n" r)))
+  (tdef 'unknown-osc-sequence (λ (t . r) (eprintf "unknown osc sequence: ~s\n" r)))
+  (tdef 'unknown-mode-set (λ (t . r) (eprintf "unknown mode set: ~s\n" r)))
+  (tdef 'bell (λ (t . r) (eprintf "Bell!\n")))
 
   ns)
