@@ -3,7 +3,8 @@
 ;; Library for handling all the system calls to unix to set up a PTY
 
 (require ffi/unsafe
-         ffi/unsafe/define)
+         ffi/unsafe/define
+         ffi/unsafe/port)
 (require racket/list racket/port racket/system racket/string)
 
 (provide (all-defined-out))
@@ -53,21 +54,6 @@
   (make-winsize height width 0 0))
 
 
-(require scheme/foreign)
-
-(unsafe!)
-
-(define scheme_make_fd_output_port
-  (get-ffi-obj "scheme_make_fd_output_port" #f
-               (_fun _int _scheme _int _int _int -> _scheme)))
-
-(define scheme_get_port_file_descriptor
-  (get-ffi-obj "scheme_get_port_file_descriptor" #f
-               (_fun (port : _scheme) (fd : (_ptr o _int))
-                     -> (ret : _int)
-                     -> (if (ret . < . 0)
-                            (error "couldn't get port file descriptor")
-                            fd))))
 
 
 (define (openpty [width 80] [height 24])
@@ -84,8 +70,8 @@
                                    (values amaster aslave slave-name))))
   (let ((ws (new-winsize width height)))
     (define-values (master slave slave-name) (openpty #f #f ws))
-    (define-values (m-in m-out) (scheme_make_fd_output_port master "mastername" 0 0 1))
-    (define-values (s-in s-out) (scheme_make_fd_output_port slave "slavename" 0 0 1))
+    (define-values (m-in m-out) (unsafe-file-descriptor->port master "mastername" '(read write)))
+    (define-values (s-in s-out) (unsafe-file-descriptor->port slave "slavename" '(read write)))
     (values m-in m-out s-in s-out master slave)))
 
 
@@ -148,5 +134,5 @@
                      _pointer
                      -> (ret : _int)
                      -> (when (equal? ret -1) (error "ioctl failed to disown controlling terminal"))))
-  (ioctl (scheme_get_port_file_descriptor (current-input-port)) TIOCNOTTY #f))
+  (ioctl (unsafe-port->file-descriptor (current-input-port)) TIOCNOTTY #f))
 

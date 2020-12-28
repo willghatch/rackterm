@@ -5,7 +5,7 @@
 ;; this in racket so no code in other languages would be needed.
 
 (module+ main
-  (require "pty.rkt")
+  (require "pty.rkt" ffi/unsafe/port)
 
   (define args (vector->list (current-command-line-arguments)))
 
@@ -17,7 +17,7 @@
 
   ;; This makes it so emacs won't say "Could not open file: /dev/tty".
   ;; So far it's the only program that runs differently
-  (set-controlling-tty (scheme_get_port_file_descriptor (current-input-port)))
+  (set-controlling-tty (unsafe-port->file-descriptor (current-input-port)))
 
   (with-handlers ([(lambda (exn) #t)
                    (lambda (exn) ((error-display-handler) (exn-message exn) exn))])
