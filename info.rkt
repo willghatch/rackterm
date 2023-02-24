@@ -6,3 +6,4 @@
                "rackunit-lib"
                "scheme-lib"))
 (define version "0.1")
+(define license '(Apache-2.0 OR MIT))
