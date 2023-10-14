@@ -364,6 +364,7 @@
 (def-set-style-bool underline)
 (def-set-style-bool blink)
 (def-set-style-bool reverse-video)
+(def-set-style-bool strikethrough)
 
 
 (define (terminal-forward-lines-column-0 term n)
@@ -465,6 +466,7 @@
   (tdef 'set-style-underline! set-style-underline!)
   (tdef 'set-style-blink! set-style-blink!)
   (tdef 'set-style-reverse-video! set-style-reverse-video!)
+  (tdef 'set-style-strikethrough! set-style-strikethrough!)
   (tdef 'insert-blanks terminal-insert-blank)
   (tdef 'terminal-clear terminal-clear)
   (tdef 'terminal-clear-from-start-to-cursor terminal-clear-from-start-to-cursor)

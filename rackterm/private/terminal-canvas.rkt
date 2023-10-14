@@ -104,6 +104,14 @@
                               (if (style-italic style) 'italic 'normal) ; normal, italic, slant
                               (if (style-bold style) 'bold 'normal) ; normal, bold, light
                               (style-underline style) ; underline?
+                              'default ; smoothing
+                              #f ; size-in-pixels
+                              'aligned ; hinting
+                              ;; font-feature-settings -- I'm not sure these actually work right now.
+                              (hash
+                               ;;#|smallcaps|# "smcp" 1
+                               ;;#|subscript|# "subs" 1
+                               )
                               )))
 
     (define (cell-size)
@@ -171,6 +179,9 @@
           (send cell-dc set-text-background (style->color% s #f))
           (send cell-dc set-text-foreground (style->color% s #t))
           (send cell-dc draw-text (cell-char->string (cell-character cell)) 0 0 #t)
+          (when (style-strikethrough s)
+            (send cell-dc set-pen (style->color% s #t) 1 'solid)
+            (send cell-dc draw-line 0 (/ cell-height 2) cell-width (/ cell-height 2)))
           cell-bitmap))
 
       (define lines (terminal-get-lines terminal))
